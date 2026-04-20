@@ -1,0 +1,839 @@
+================================================================================
+DRONE GPS-DENIED LOCALIZATION VIA SATELLITE IMAGERY MATCHING
+Vertical Implementation Plan — Claude Code + Human Collaboration
+================================================================================
+Created: 2026-04-20
+Revised:  2026-04-20 (incorporating Codex critique)
+Target: 5 m accuracy, 5-100 m AGL, server-side compute, 100 m dead-reckoning prior
+Input per packet: JPEG frame (downward-facing nadir camera), altitude (m), compass heading (deg)
+Output per packet: (lat, lng) estimate + confidence radius
+
+================================================================================
+REVISION NOTES (what changed from v1 and why)
+================================================================================
+
+After reading Codex's round 1 critique, the following were adopted:
+  - Orthorectification renamed to frame normalization (nadir-only, scale+rotation).
+  - GPS label noise is a first-class concern; label_audit.py added.
+  - Metrics extended: p90, ECE, jitter, relocalization time, map-age breakdown.
+  - Split policy requires a held-out geographic area.
+  - change-log.md (intent before results) adopted from Codex's tracking design.
+  - Acceptance thresholds provisional until Phase 1 baseline is measured.
+  - Particle filter state extended to include heading optionally.
+
+After reading Codex's round 2 critique, the following were additionally adopted:
+  - Phase 2A/2B ordering SWAPPED: RoMa zero-shot now comes BEFORE the heatmap
+    model. Codex's "false confidence on public data" argument is correct --
+    training a heatmap model on a public dataset before measuring the
+    off-the-shelf baseline gives the team a result that may optimize for the
+    wrong distribution. The fastest honest signal is zero-shot RoMa.
+  - Geometry uncertainty section added to Phase 0-C, listing all the real-world
+    input uncertainties (altitude AGL vs. above takeoff, gimbal drift, FOV
+    mismatch, map GSD) that make the transform non-trivial even if the code is.
+  - RoMa fine-tuning path made concrete: the plan now explicitly picks one of
+    three options and states it as a decision gate, not a vague instruction.
+  - Phase gates restructured: once local data exists, local-data gates supersede
+    public-dataset gates explicitly.
+
+NOT adopted (with reasoning in claude-citique.txt):
+  - Base64/JSON WebSocket kept as the dev-phase protocol (not production).
+  - Live server is still Phase 4, not deferred to near-end.
+
+================================================================================
+SYSTEM OVERVIEW
+================================================================================
+
+Nadir assumption: the drone camera points directly down. This means the
+drone frame is already near-nadir. No perspective correction for oblique
+angles is needed. The normalization we need is:
+  1. Scale: match the drone frame's ground footprint to the reference tile
+  2. Rotation: align north using compass heading
+
+Each drone packet -> server pipeline:
+  1. Receive: {frame, altitude_m, heading_deg, prior_lat, prior_lng}
+  2. Crop reference tile from local satellite map around prior position
+  3. Normalize drone frame: scale to match footprint, rotate to north-align
+  4. Run localizer (heatmap model or dense matcher) to find offset inside crop
+  5. Convert pixel offset to meters to lat/lng delta
+  6. Fuse into particle filter to smooth estimates over time
+  7. Return: {lat, lng, confidence_m, match_score}
+
+Phase 2A -- pretrained dense matcher (RoMa, zero-shot):
+  - Evaluated before any custom training
+  - Fastest honest signal: what can off-the-shelf neural matching do right now?
+  - Result determines whether Phase 2B fine-tunes RoMa or trains a scratch model
+
+Phase 2B -- first trained model (decision-driven):
+  - If RoMa zero-shot is close to target: fine-tune RoMa with position-only loss
+  - If RoMa zero-shot is clearly inadequate: train crop-conditioned heatmap model
+  - If both are useful: heatmap as coarse stage, RoMa as fine-alignment refiner
+  Decision recorded in change-log.md before any training code is written.
+
+================================================================================
+CHANGE TRACKING & METRICS SYSTEM
+================================================================================
+
+Two tracking files maintained from the very first commit:
+
+experiments/experiment-log.csv
+  One row per run. Columns:
+  run_id, date, git_commit, phase, dataset_version, model_name, config_path,
+  search_radius_m, area_type, altitude_band, train_split, val_split, test_split,
+  primary_metric, primary_metric_value, notes
+
+experiments/change-log.md
+  Human-readable. For each significant change, record BEFORE results are known:
+  - date
+  - owner (human or agent)
+  - files changed
+  - intent (hypothesis: what do we expect this to change and why?)
+  - linked run_ids (filled in after)
+  - actual result (filled in after)
+
+Per-run artifact folder: artifacts/runs/<run_id>/
+  - config_snapshot.yaml    (copy of config at time of run)
+  - metrics.json            (full metrics, see schema below)
+  - predictions.csv         (per-frame: pred_lat, pred_lng, gt_lat, gt_lng, score)
+  - plots/                  (CDF, altitude breakdown, calibration curve)
+  - overlays/               (sample match visualizations, failure gallery)
+  - run.log                 (stdout)
+
+METRICS SCHEMA (metrics.json):
+  {
+    "run_id": "RUN-003",
+    "date": "2026-05-01",
+    "git_commit": "a3f9c12",
+    "dataset_version": "v1.2",
+    "model": "heatmap_v1",
+    "gpu": "RTX 3080",
+
+    // primary accuracy
+    "mean_pos_error_m": 4.2,
+    "median_pos_error_m": 2.8,
+    "p90_pos_error_m": 9.1,
+    "p95_pos_error_m": 14.3,
+    "recall_at_1m": 0.12,
+    "recall_at_3m": 0.41,
+    "recall_at_5m": 0.61,
+    "recall_at_10m": 0.83,
+    "failure_rate": 0.08,       // frames with score below min threshold
+
+    // tracking metrics (sequence mode only)
+    "track_median_error_m": null,
+    "drift_over_10s_m": null,
+    "estimate_jitter_m": null,   // frame-to-frame variance while hovering
+    "relocalization_time_s": null,
+
+    // confidence calibration
+    "expected_calibration_error": null,
+    "confidence_vs_error_corr": null,
+
+    // runtime
+    "end_to_end_latency_ms": null,
+    "matching_latency_ms": null,
+    "filter_latency_ms": null,
+    "throughput_fps": 3.2,
+
+    // subgroup breakdowns
+    "altitude_bins": {
+      "5-15m":  {"mean_err_m": 9.1, "recall_5m": 0.21, "n": 200},
+      "15-30m": {"mean_err_m": 5.4, "recall_5m": 0.44, "n": 300},
+      "30-60m": {"mean_err_m": 3.8, "recall_5m": 0.63, "n": 450},
+      "60-100m":{"mean_err_m": 2.1, "recall_5m": 0.79, "n": 300}
+    },
+    "area_type_bins": {
+      "urban":       {"mean_err_m": 2.9, "n": 400},
+      "suburban":    {"mean_err_m": 4.1, "n": 350},
+      "agricultural":{"mean_err_m": 5.8, "n": 300},
+      "forest":      {"mean_err_m": 11.2,"n": 200}
+    },
+    "seen_area_recall_5m": 0.68,      // flights over areas in training set
+    "unseen_area_recall_5m": 0.51,    // held-out area generalization
+
+    "notes": "..."
+  }
+
+PROVISIONAL TARGET THRESHOLDS (public-dataset phase):
+  Phase 1 (classical baseline):  Record Recall@10m and p90 on UAV-VisLoc val.
+    Do NOT set a numeric gate until the first run completes.
+  Phase 2A (RoMa zero-shot):     Recall@5m improves >= 0.10 over Phase 1 OR
+                                   Recall@10m >= 0.50.
+    If neither is met: record failure path in change-log.md and proceed to
+    Phase 2B scratch model regardless -- zero-shot failure is useful signal.
+  Phase 2B (first trained model): Recall@5m > best Phase 2A result + 0.05,
+                                   p90 improves >= 10%.
+  Phase 3 (fine-tuned on local):  recall_5m > 0.55, p90 < 15 m.
+    SUPERSEDED by local-data gate once real flights exist:
+    local recall_5m > public-dataset recall_5m - 0.10
+    (we expect some drop on real data; more than 0.10 indicates distribution gap)
+  Phase 4 (particle filter):      track_median_error_m < single-frame median,
+                                   estimate_jitter_m < 2 m while hovering,
+                                   ECE < 0.15 (confidence must be calibrated)
+  Phase 5 (live flight):          recall_5m > 0.45 on real data
+    This is the first gate that is not provisional -- it reflects deployment
+    reality, not a public benchmark.
+
+Rule: once local flight data exists, local-data gates replace public-dataset
+gates for all decisions. Public-dataset results are benchmarks; local results
+are decisions.
+
+Git commit convention: [RUN-NNN] <verb> <what>
+
+================================================================================
+PHASE 0 -- PROJECT SCAFFOLD & DATA PIPELINE
+================================================================================
+Goal: runnable evaluation harness that ingests satellite tiles + drone frames,
+      produces (normalized_frame, ref_crop, gt_offset) pairs, and outputs
+      a metrics.json with a smoke-test run on fake/synthetic data.
+No model training. End state: you can visualize paired samples.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+0-A. Create project layout:
+      src/
+        ingest/
+          tile_fetcher.py    <- download/cache satellite tiles
+          packet_reader.py   <- parse incoming drone packet
+        geo/
+          frame_normalizer.py <- scale + rotate drone frame (see 0-C)
+          crop_generator.py  <- crop reference tile around prior
+          geo_utils.py       <- pixel-to-meters, lat/lng math
+        models/
+          __init__.py
+          classical.py       <- ORB/AKAZE baseline
+          heatmap_model.py   <- crop-conditioned heatmap localizer
+          roma_matcher.py    <- RoMa wrapper
+        tracking/
+          particle_filter.py <- temporal filter
+        eval/
+          metrics.py         <- compute full metrics schema
+          visualize.py       <- overlays, CDF, calibration plots
+          run_manager.py     <- generate run_id, snapshot config, write artifacts
+        server/
+          receiver.py        <- WebSocket packet receiver (dev protocol)
+          localizer.py       <- orchestrates pipeline per packet
+      artifacts/
+        runs/                <- per-run artifact folders
+      experiments/
+        experiment-log.csv
+        change-log.md
+      data/
+        satellite/           <- cached tiles
+        drone_frames/        <- raw drone footage
+        pairs/               <- generated (frame, crop, label) pairs
+      scripts/
+        download_tiles.py
+        build_dataset.py
+        train.py
+        eval.py
+        compare_runs.py
+      configs/
+        default.yaml
+        datasets/
+        train/
+        eval/
+      requirements.txt
+
+0-B. Implement tile_fetcher.py:
+      - Given (lat, lng, zoom, px_size), fetch from ESRI World Imagery XYZ
+      - IMPORTANT: log tile source URL, tile date if available, and zoom level
+        into every metrics.json (map provenance is a first-class audit field)
+      - Cache as PNG keyed by (lat, lng, zoom)
+      - Return numpy array + pixel-to-meter scale factor at that lat/zoom
+      - Note for human: ESRI World Imagery is free for dev/non-commercial use.
+        Before any real deployment, confirm the map source license and verify
+        image date for the target area.
+
+0-C. Implement frame_normalizer.py:
+      NADIR ASSUMPTION: camera points directly down. No perspective correction.
+      The normalization is purely scale and rotation:
+
+        ground_footprint_width_m = 2 * altitude_m * tan(camera_hfov_rad / 2)
+        scale_factor = tile_resolution_mpx / (frame_width_px / ground_footprint_width_m)
+        # resize drone frame so 1 px = same real-world meters as reference tile
+        normalized = cv2.resize(frame, ...)
+        # rotate so North is up (satellite tile is North-up by convention)
+        normalized = cv2.warpAffine(normalized, rotation_matrix(-heading_deg), ...)
+
+      - Configurable camera_hfov_deg (default 84 deg, DJI-class cameras)
+      - Expose camera calibration via config so it can be updated per-drone
+      - Unit test: 0 deg and 360 deg heading must give identical output
+      - Unit test: at altitude=50 m, FOV=84 deg, check footprint = ~92 m
+
+      GEOMETRY UNCERTAINTY -- the code is short but the inputs are not clean:
+        - Altitude: barometric or rangefinder reads AGL above takeoff point,
+          not above the current terrain. On sloped or varied ground this can be
+          off by several meters. At 15 m altitude, a 2 m terrain error = 13%
+          scale error = ~2 m positional bias before any model runs.
+        - FOV: nominal spec (e.g. "84 deg") may differ from actual calibrated FOV
+          by 2-5 deg, especially after firmware updates. A 3 deg FOV error at
+          30 m altitude introduces ~1.5 m scale error.
+        - Heading: compass heading is typically +/-2 deg for a consumer gimbal.
+          At 50 m footprint width, 2 deg misalignment = ~1.7 m edge misalignment.
+        - Gimbal nadir: a "downward-facing" camera may have 1-3 deg of residual
+          tilt. This produces a small parallax shift. At 30 m altitude and 2 deg
+          tilt, the center shift is ~1 m. This is within GPS label noise so it
+          is acceptable to ignore for v1 but should be measured on real footage.
+        - Map GSD mismatch: satellite tile GSD varies by zoom level and latitude.
+          Always verify tile_resolution_mpx at runtime, do not hardcode it.
+
+      Implement geometry_sensitivity_report() in geo_utils.py:
+        Input: nominal altitude_m, heading_deg, camera_hfov_deg
+        Output: table of induced errors for +/-5%, +/-10% perturbations on each
+        Run this at startup and log the table to the run artifact folder.
+        This is not a test that passes or fails -- it is a diagnostic that makes
+        the uncertainty visible before any model result is interpreted.
+
+0-D. Implement crop_generator.py:
+      - Input: (prior_lat, prior_lng, search_radius_m, tile_resolution_mpx)
+      - Output: satellite crop image (numpy) + crop origin (lat, lng)
+      - Default search_radius_m = 150 (100 m prior + 50 m margin)
+      - Visualization: show prior center, crop window, expected frame footprint
+
+0-E. Implement pair_dataset.py:
+      - Loads manifest.csv entries
+      - Calls frame_normalizer + crop_generator per entry
+      - Returns {drone_patch, ref_crop, gt_offset_px, altitude_m, heading_deg,
+                 area_type, map_date, session_id}
+      - Split policy: split by GEOGRAPHIC AREA first, then by session.
+        At least one geographic area must be held out entirely for test.
+        Never split by frame only.
+
+0-F. Implement run_manager.py:
+      - generate_run_id() -> "RUN-NNN" (auto-increments from experiment-log.csv)
+      - snapshot_config(config, run_id) -> saves to artifacts/runs/<run_id>/
+      - write_metrics(metrics_dict, run_id)
+      - append_to_experiment_log(row)
+      - Stores: git_commit (via subprocess git rev-parse HEAD),
+                dataset_version, gpu info, timestamp
+
+0-G. Implement metrics.py and visualize.py:
+      - metrics.py: compute full schema including p90, p95, recall@Xm,
+        failure_rate, altitude/area_type subgroup breakdowns
+      - Leave tracking metrics as null until Phase 4
+      - Confidence calibration: bucket predicted confidences into 10 bins,
+        plot mean actual error per bin vs. predicted confidence
+      - visualize.py: match overlays, error CDF, altitude breakdown bar chart,
+        confidence calibration curve
+
+0-H. Write smoke test:
+      - Generate 50 synthetic pairs (random patches with known offsets)
+      - Run through full eval pipeline
+      - Confirm metrics.json written, plots generated, run_id logged to CSV
+      - This is the "does the plumbing work" check -- model accuracy is random
+
+0-I. Write requirements.txt:
+      torch torchvision numpy opencv-python pillow requests
+      git+https://github.com/Parskatt/RoMa
+      kornia scipy matplotlib tqdm pyyaml websockets fastapi
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+0-J. Choose a test area (~2x2 km) where you can also fly or have existing
+     footage. Good terrain: farmland with field patterns, suburban, industrial.
+     Avoid dense forest, open water, or featureless parking lots for early
+     development (these are hard cases, not good for initial validation).
+     Record the bounding box in degrees.
+
+0-K. Run scripts/download_tiles.py on the bounding box with zoom=19
+     (~0.3 m/px at mid-latitudes).
+
+0-L. Manually verify 5-10 cached tiles. Confirm imagery resolution and
+     note the approximate capture date of the satellite imagery (visible
+     in ESRI layer attribution). Record this in experiments/change-log.md.
+     This is important: if your drone flights are more than ~2 years newer
+     than the satellite imagery, you may see construction/vegetation mismatch.
+
+0-M. Provide camera specs: resolution, horizontal FOV (or focal length),
+     and confirm whether the gimbal is truly nadir-locked or only nominally
+     downward facing. Update config/default.yaml with your camera values.
+
+---- DONE WHEN ---------------------------------------------------------------
+- Smoke test runs: `python scripts/eval.py --config configs/default.yaml --smoke`
+- Writes artifacts/runs/RUN-000/metrics.json (with nulls for real metrics)
+- Appends row to experiments/experiment-log.csv
+- visualize.py opens a matplotlib window with a synthetic pair overlay
+
+================================================================================
+PHASE 1 -- CLASSICAL BASELINE (ORB + AKAZE + RANSAC)
+================================================================================
+Goal: establish a measured, recorded baseline that every neural phase must beat.
+Use a PUBLIC DATASET (UAV-VisLoc or DenseUAV) so this is reproducible without
+any drone flights. End state: first real numbers in experiment-log.csv.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+1-A. Implement src/models/classical.py:
+      - ORBMatcher: ORB + BFMatcher + RANSAC affine, returns offset + inlier_count
+      - AKAZEMatcher: same interface, AKAZE + FLANN + RANSAC
+      - NCCMatcher: normalized cross-correlation on the normalized patch
+        (useful low-texture fallback where keypoints are sparse)
+      - All return: (offset_px, inlier_count, score) or None if below threshold
+
+1-B. Implement scripts/eval.py entry point:
+      - Loads dataset, runs matcher, calls metrics.py, calls run_manager
+      - Saves failure gallery: worst 20 predictions by error, shown as overlays
+      - Saves subgroup breakdown plots (altitude band, area type)
+
+1-C. Download and adapt one public dataset:
+      - Primary: UAV-VisLoc (most directly relevant -- low-altitude UAV)
+      - Fallback: DenseUAV
+      - Write an adapter that maps their format into our manifest.csv schema
+      - Do NOT need perfect alignment -- just enough to get real numbers
+
+1-D. Run RUN-001 (ORB on UAV-VisLoc val split). Log to experiment-log.csv.
+     Run RUN-002 (AKAZE). Compare via scripts/compare_runs.py.
+
+1-E. After recording baseline, update PROVISIONAL thresholds in the metrics
+     section above: set Phase 2A gate as "beat RUN-001 recall_5m by 0.10".
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+1-F. Download UAV-VisLoc dataset (search "UAV-VisLoc dataset" on Papers With
+     Code). Place in data/public/uav_visloc/. This is a human task because
+     dataset download sites often require account registration.
+
+1-G. Review failure gallery from RUN-001. Note in change-log.md:
+     - Which altitude bands fail most?
+     - Do texture-poor scenes dominate failures?
+     - Is the frame normalization visually correct (patches roughly aligned)?
+     If patches look grossly misaligned, update camera FOV in default.yaml
+     before continuing.
+
+---- DONE WHEN ---------------------------------------------------------------
+- RUN-001 and RUN-002 metrics.json exist with real numbers
+- Failure gallery reviewed and notes in change-log.md
+- Phase 2 gate thresholds set based on observed baseline
+
+================================================================================
+PHASE 2A -- PRETRAINED DENSE MATCHER (RoMa, ZERO-SHOT)
+================================================================================
+Goal: get the fastest honest neural signal before writing any training code.
+      Run RoMa pretrained weights with zero training. This is the off-the-shelf
+      baseline that any trained model must beat to justify its cost.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+2A-A. Implement src/models/roma_matcher.py:
+       - RoMaMatcher wrapping RoMa outdoor pretrained model
+       - match(drone_patch, ref_crop) -> (offset_px, n_matches, confidence)
+       - Resize inputs to RoMa expected resolution (560x560)
+       - GPU if available, CPU fallback
+       - Log per-component latency: preprocessing_ms, inference_ms, postprocess_ms
+
+2A-B. Run RUN-003 (RoMa zero-shot) on the same val split as Phase 1.
+      Write metrics.json. Run compare_runs.py: RUN-001 vs RUN-003.
+      Check against gates: Recall@5m improves >= 0.10 over Phase 1 OR
+      Recall@10m >= 0.50.
+
+2A-C. Produce calibration curve for RUN-003: does RoMa's match confidence
+      correlate with actual positional error? This determines whether its
+      scores are usable as particle filter weights.
+
+2A-D. Record the DECISION in change-log.md based on RUN-003 results:
+      OPTION A -- RoMa is close to useful (Recall@5m > Phase1 + 0.10):
+        Fine-tune RoMa using position-only supervision. Specifically:
+        freeze RoMa backbone, add a lightweight localization head (2D offset
+        regressor) on top of frozen features, train head only with loss =
+        L1(predicted_offset_px, gt_offset_px). This preserves RoMa's
+        correspondence capability while adapting to the local regime.
+        Do NOT backprop into the RoMa backbone unless head-only fine-tuning
+        plateaus below the gate.
+      OPTION B -- RoMa zero-shot is clearly inadequate (below both gates):
+        Proceed to Phase 2B scratch heatmap model. RoMa may still be used
+        as a refinement stage later once the pipeline is validated.
+      OPTION C -- RoMa partially works but is too slow (< 0.5 fps on target):
+        Use EfficientLoFTR as the pretrained model instead. Re-run as RUN-004.
+      This decision must be written to change-log.md before Phase 2B begins.
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+2A-E. Run RUN-003 on your hardware. GPU strongly recommended -- RoMa is
+      slow on CPU (~0.2 fps). Note actual throughput_fps in metrics.json.
+      If CPU-only, note this as a deployment constraint.
+
+2A-F. Review 20 RoMa match overlays. Are the matched keypoints in the right
+      place? Do failures cluster by altitude band or terrain type?
+
+---- DONE WHEN ---------------------------------------------------------------
+- RUN-003 metrics.json complete with calibration curve
+- Decision (Option A, B, or C) recorded in change-log.md
+- compare_runs.py table shows RUN-001 vs RUN-003
+
+================================================================================
+PHASE 2B -- FIRST TRAINED MODEL (DECISION-DRIVEN)
+================================================================================
+Goal: implement whichever trained path was decided in Phase 2A.
+      This phase only begins after change-log.md has the decision entry.
+
+---- AI AGENT TASKS (OPTION A -- fine-tune RoMa) ---------------------------
+
+2B-A1. Add localization head to roma_matcher.py:
+        - Input: frozen RoMa feature maps for (drone_patch, ref_crop)
+        - Output: 2D offset prediction (dx_px, dy_px) + scalar confidence
+        - Architecture: 4-layer MLP on concatenated global-avg-pool features
+        - Loss: L1(predicted_offset, gt_offset) + confidence calibration BCE
+
+2B-A2. Implement train.py for head-only fine-tuning:
+        - Load pretrained RoMa, freeze all parameters
+        - Train head with AdamW, lr=1e-3, cosine schedule, 30 epochs
+        - Unfreeze backbone only if head-only val recall_5m plateaus < gate
+        - Log train_log.csv per epoch; save best checkpoint by val recall_5m
+
+---- AI AGENT TASKS (OPTION B -- scratch heatmap model) --------------------
+
+2B-B1. Implement src/models/heatmap_model.py:
+        - Dual encoder (ResNet18 or MobileNetV2) + cross-correlation head
+        - Output: 2D heatmap (softmax over crop pixels) + scalar confidence
+        - Loss: NLL of ground-truth position in heatmap + confidence BCE
+        - Keep it small: must train in < 2 hours on a gaming GPU
+
+2B-B2. Implement train.py for heatmap model:
+        - Same structure as Option A training script
+        - Augmentation: brightness/contrast +/-20%, JPEG 60-95%, +/-5 deg rotation
+          on drone patch only; no augmentation on reference crop
+
+---- AI AGENT TASKS (BOTH OPTIONS) ----------------------------------------
+
+2B-C. Run RUN-004 (trained model). Compare to RUN-001 (classical) and
+      RUN-003 (RoMa zero-shot) in compare_runs.py.
+      Gate: recall_5m > best(RUN-001, RUN-003) + 0.05 AND p90 improves >= 10%.
+
+2B-D. Produce calibration curve for RUN-004.
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+2B-E. Run the training job. Monitor train_log.csv.
+      Report if loss does not decrease after epoch 5.
+
+2B-F. Review 20 output visualizations. Compare failure modes to RUN-003.
+      Note in change-log.md whether the training improved on the specific
+      failure types seen in Phase 2A, or whether failures are now different.
+
+---- DONE WHEN ---------------------------------------------------------------
+- RUN-004 metrics.json shows improvement over best prior run on both gates
+  OR documented understanding of why improvement did not materialize
+- compare_runs.py shows three-way comparison: classical, zero-shot, trained
+
+================================================================================
+PHASE 3 -- DATASET COLLECTION & FINE-TUNING
+================================================================================
+Goal: collect real drone data, evaluate on it, then fine-tune the best model
+      from Phase 2 on local data. This phase assumes drone flights happen.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+3-A. Write scripts/export_flight_dataset.py:
+      - Input: folder with frames/ (JPEG sequence) + telemetry.csv
+        (timestamp, lat, lng, alt_m, heading_deg, gps_fix_quality)
+      - Match frames to telemetry by timestamp
+      - Fetch satellite reference patch per frame
+      - Run frame_normalizer, crop_generator to produce the pair
+      - Save as data/pairs/{session_id}/{frame_id}.npz
+      - IMPORTANT: log GPS fix quality and flag any frames where
+        gps_fix_quality < 3D_fix as LABEL_UNCERTAIN in the manifest.
+        Do not automatically discard them -- let the human decide.
+      - Write pairs/manifest_v{N}.csv with all metadata
+
+3-B. Write a label_audit.py script:
+      - Random sample 50 pairs from the new dataset
+      - For each: show drone patch overlaid on reference crop with the
+        labeled position marked
+      - Human must confirm that labels look geometrically consistent
+        before training begins
+      - This is the check against training on noisy labels
+
+3-C. Update train.py to support fine-tuning:
+      - For heatmap model: load Phase 2A checkpoint, continue training on
+        local data (smaller LR: 1e-5 backbone, 1e-4 head)
+      - For RoMa (if chosen): load pretrained weights, freeze backbone for
+        first 5 epochs, then unfreeze. Loss: soft reprojection using the
+        known scale (altitude + FOV -> pixels-per-meter). Do NOT assume
+        perfect homographies. Use position-only supervision.
+      - Save best checkpoint per val recall_5m on the local held-out area.
+
+3-D. Run RUN-005: evaluate the best Phase-2 model directly on local real
+     drone data WITHOUT any further training. This is the transfer baseline:
+     how well does the public-data-trained model generalize to real flights?
+     Record in experiment-log.csv. NOTE: this is now the first gate that is
+     not measured on a public dataset -- its result determines whether Phase 3
+     fine-tuning is needed at all.
+
+3-E. Run RUN-006: fine-tune on local data (if RUN-005 misses the Phase 3 gate).
+     Evaluate on held-out geographic area. Compare to RUN-005.
+     If RUN-005 already meets the local gate, skip RUN-006 and record reason.
+
+3-F. Run RUN-007: ablation without data augmentation vs. RUN-006.
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+3-G. Fly data collection mission:
+       Altitude bands: 10 m, 20 m, 30 m, 50 m, 75 m, 100 m
+       At each altitude: lawnmower pattern over test area
+       Min 5 minutes per altitude band, fly at 3 m/s
+       GPS: standard GPS is acceptable (~1.5 m error) but note that
+         localization training accuracy is bounded by label quality.
+         At 10-20 m altitude, 1.5 m label noise may meaningfully limit
+         sub-5 m accuracy. RTK GPS is strongly recommended for those
+         altitude bands if achievable.
+       Fly on a clear day. Repeat on an overcast day (domain gap data).
+       Record telemetry.csv per flight including GPS fix quality column.
+       TOTAL: aim for 2000+ labeled frames. Track in change-log.md.
+
+3-H. Run label_audit.py on your collected data. Flag any sessions where
+     labels look geometrically wrong (drone patch clearly not at the
+     labeled position on the satellite tile). Remove or exclude those
+     sessions before training. Record your decisions in change-log.md.
+
+3-I. Kick off fine-tuning: `python scripts/train.py --config configs/train/finetune_v1.yaml`
+     Monitor train_log.csv. Report convergence behavior.
+
+---- DONE WHEN ---------------------------------------------------------------
+- label_audit.py run and flagged sessions excluded
+- RUN-005 (real data, no fine-tuning) exists -- this is your actual zero-shot
+  real-world performance number
+- RUN-006 (fine-tuned) shows improvement over RUN-005 OR documented why not
+
+================================================================================
+PHASE 4 -- PARTICLE FILTER TEMPORAL FUSION
+================================================================================
+Goal: fuse per-frame estimates over time. Reduce jitter and reject outliers.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+4-A. Implement src/tracking/particle_filter.py:
+      State vector: (lat, lng) with optional heading extension
+      N=500 particles, initialized as uniform disk of 100 m around prior
+
+      Prediction step:
+        Propagate by dead-reckoning delta (lat/lng per timestep)
+        Gaussian process noise scaled to dead-reckoning drift (default 0.5 m/s)
+        Optionally propagate heading separately if compass is available
+
+      Update step:
+        Weight particles by Gaussian likelihood of measurement:
+          w_i *= exp(-dist(particle_i, estimate)^2 / (2 * sigma^2))
+          where sigma = calibrated_confidence_m from the model
+        Normalize weights
+        Resample when effective N < N/2
+
+      Failure handling: if confidence < min_threshold, skip update (coast)
+      Output: weighted mean (lat, lng) + std as confidence_m
+
+      Tracking metrics: compute jitter_m as stddev of estimates over a
+      10-frame window, drift_over_10s_m as displacement from ground truth
+      averaged across hover sequences.
+
+4-B. Add confidence calibration to eval pipeline:
+      - Fit isotonic regression: (model_score, altitude_m) -> true_error_m
+      - Use calibrated sigma in particle filter update
+      - Compare RUN with raw vs. calibrated confidence
+
+4-C. Implement src/server/localizer.py:
+      - Maintains ParticleFilter instance per session_id
+      - Per packet: normalize frame -> generate crop -> run model ->
+        update filter -> return estimate
+      - If confidence < hard_threshold for 3+ consecutive frames:
+        set localization_status = "lost", coast on dead-reckoning
+
+4-D. Implement src/server/receiver.py:
+      - asyncio WebSocket server
+      - Packet format (JSON + base64 JPEG -- dev protocol, not production):
+          {session_id, timestamp_ms, frame_b64, altitude_m, heading_deg,
+           prior_lat, prior_lng}
+      - Response: {lat, lng, confidence_m, match_score, localization_status, fps}
+      - Note: base64/JSON is used here for ease of debugging and integration
+        testing. For production, replace with binary framing or gRPC.
+
+4-E. Add sequence evaluation to eval.py:
+      - Replay a full flight sequence through localizer.py (offline mode)
+      - Compute track_median_error_m, jitter_m, relocalization_time_s
+      - Plot position trace overlaid on satellite tile
+
+4-F. Run RUN-008: sequence mode with particle filter on held-out flight.
+     Compare to frame-by-frame mode from Phase 3.
+
+4-G. Tune particle filter:
+      - Sweep N in {100, 200, 500, 1000}, noise_sigma in {0.1, 0.3, 0.5, 1.0}
+      - Log each sweep as a separate run in experiment-log.csv (RUN-009 etc.)
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+4-H. Start the WebSocket server and connect a test client:
+       python -m src.server.receiver
+       python scripts/test_client.py --replay data/pairs/session_001/
+     Confirm you get lat/lng responses streaming back.
+
+4-I. Live flight test:
+      - Connect drone to laptop running receiver.py
+      - Fly the same lawnmower pattern as Phase 3
+      - Record the server's response stream to a CSV
+      - Compare to GPS ground truth after landing
+      - Record in change-log.md: what the actual live accuracy was
+
+---- DONE WHEN ---------------------------------------------------------------
+- RUN-008 track_median_error_m < single-frame median_error_m
+  (particle filter must improve over frame-by-frame mode)
+- Live flight test attempted. Results recorded even if they miss the target.
+- jitter_m measured in hover is documented
+
+================================================================================
+PHASE 5 -- HARDENING & EDGE CASES
+================================================================================
+Goal: make the system degrade gracefully on hard conditions.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+5-A. Seasonal robustness:
+      - Log satellite tile capture date in every metrics run
+      - Implement multi-season tile support in tile_fetcher.py
+      - Add reference_selector.py: score drone frame against available
+        seasonal tiles and pick the best-matching one
+      - Run RUN on winter drone data vs. summer satellite tile:
+        quantify the map-age degradation explicitly
+
+5-B. Low-texture fallback (improved from v1):
+      - Texture score is computed jointly from both drone patch AND
+        reference crop (not reference only)
+      - Include color histogram similarity as a second signal
+      - Flag as low_texture when BOTH query and reference have low response
+      - Fallback: widen search window, use coarser-scale NCC matcher first
+
+5-C. Heading uncertainty handling:
+      - If compass uncertainty > 10 deg, run +-10 deg rotation sweep and
+        pick the alignment with highest model score
+      - Log heading_correction_deg in response
+
+5-D. Altitude uncertainty handling:
+      - At 5-15 m altitude, a 0.5 m altitude error = ~6% scale error
+      - Run a small scale sweep (+-5%) and pick the best-matching scale
+      - Log scale_correction in response
+
+5-E. Calibrated fail-safe:
+      - Publish expected_calibration_error per altitude band in weekly reports
+      - If ECE exceeds threshold for a band, flag that band's estimates with
+        CALIBRATION_UNCERTAIN status in the response
+
+5-F. Run robustness benchmark:
+      - Evaluate on all hard conditions (low texture, seasonal mismatch,
+        compass error, low altitude)
+      - Report subgroup metrics in compare_runs.py summary table
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+5-G. Collect hard-case footage:
+      - Fly over a water body / parking lot (low texture)
+      - Fly in a different season from training data if possible
+      - Fly deliberately at an incorrect compass calibration (document offset)
+      Label these as hard sessions in the manifest.
+
+5-H. Verify fallback behavior: review server logs on hard sessions.
+     Confirm low_texture_flag triggers, localization_status goes to "uncertain"
+     or "lost" correctly. Report to change-log.md.
+
+---- DONE WHEN ---------------------------------------------------------------
+- Hard case sessions evaluated and subgroup metrics recorded
+- Fallback triggers verified by human review of server logs
+
+================================================================================
+PHASE 6 -- PRODUCTION PACKAGING
+================================================================================
+Goal: clean, deployable server with monitoring.
+
+---- AI AGENT TASKS --------------------------------------------------------
+
+6-A. Dockerize:
+      - Dockerfile: Python 3.11, CUDA base, install requirements.txt
+      - docker-compose.yml: server + nginx tile cache
+
+6-B. Add Prometheus metrics endpoint /metrics:
+      - localization_error_m histogram (labeled by altitude_band, area_type)
+      - match_score histogram
+      - throughput_fps gauge
+      - frames_failed_total counter
+      - calibration_ecr gauge per altitude band
+
+6-C. Build minimal live dashboard (FastAPI + Jinja2 + Leaflet.js):
+      - Real-time map with drone position dot
+      - Sidebar: lat/lng, confidence_m, match_score, fps, localization_status
+      - Trail of last 50 positions
+      - Color: green < 5 m, yellow 5-15 m, red > 15 m
+
+6-D. Write integration test suite:
+      - Feed pre-recorded flight sequence through full server
+      - Assert track_median_error_m < acceptable limit and fps > 1.0
+      - CI-friendly: runs without GPU on a small test set
+
+6-E. Write operational envelope document (docs/operational_envelope.md):
+      - Where the system works reliably (altitude band, terrain type, conditions)
+      - Where it degrades (low texture, seasonal mismatch, very low altitude)
+      - What the failure modes look like (localization_lost vs. silent drift)
+      - Recommended operating procedures (when to trust it, when to fall back)
+
+---- HUMAN TASKS ------------------------------------------------------------
+
+6-F. Deploy Docker container. Run a live flight and watch the dashboard.
+6-G. Stress test: connect two drone sessions simultaneously.
+6-H. Review operational envelope document. Confirm it matches your flight
+     experience. Add any field-observed failure modes.
+
+---- DONE WHEN ---------------------------------------------------------------
+- Docker container starts and processes test packets without errors
+- Dashboard renders during a live or replay session
+- Operational envelope document reviewed and signed off by human
+
+================================================================================
+QUICK REFERENCE: EXPERIMENT LOG FORMAT
+================================================================================
+
+experiments/experiment-log.csv -- append one row per run:
+
+  run_id, date, git_commit, phase, dataset_version, model_name, config_path,
+  search_radius_m, area_type, altitude_band, train_split, val_split, test_split,
+  primary_metric, primary_metric_value, notes
+
+experiments/change-log.md -- append for each significant code/config change:
+
+  ## <date> -- <owner>
+  Files changed: ...
+  Intent: <hypothesis BEFORE running>
+  Linked run_ids: RUN-NNN (fill in after)
+  Actual result: (fill in after)
+
+================================================================================
+DECISION GATES
+================================================================================
+
+Phase 0->1: smoke test runs clean, synthetic pairs visible in matplotlib
+Phase 1->2A: baseline numbers recorded, Phase 2A gate threshold set
+Phase 2A->2B: RUN-003 beats RUN-001 OR documented reason it does not
+Phase 2B->3: explicit decision in change-log.md on which model to pursue
+Phase 3->4: label_audit.py passed, RUN-005 (real data zero-shot) recorded
+Phase 4->5: live flight test attempted, jitter and tracking metrics recorded
+Phase 5->6: hard-case fallbacks verified by human
+Phase 6: system live -- iterate on Prometheus metrics and subgroup breakdowns
+
+If a gate is not passed: open a new run_id for the investigation.
+Never advance to the next phase on a broken or unrecorded foundation.
+
+================================================================================
+APPENDIX: KEY REFERENCES
+================================================================================
+
+Models:
+  RoMa:         Edstedt et al. 2024  (MIT license, dense matcher)
+  EfficientLoFTR: Chen et al. 2024   (Apache-2.0)
+  LightGlue:    Lindenberger et al. 2023 (Apache-2.0)
+
+Datasets:
+  UAV-VisLoc:   search "UAV-VisLoc dataset" on Papers With Code
+  DenseUAV:     search "DenseUAV" on GitHub
+  AnyVisLoc:    search "AnyVisLoc benchmark" on Papers With Code
+
+Papers:
+  WildNav:      Fervers et al. 2023 (UAV localization benchmark)
+  DenseUAV:     Dai et al. 2023 (urban low-altitude)
+
+================================================================================
+END OF PLAN (v2)
+================================================================================
