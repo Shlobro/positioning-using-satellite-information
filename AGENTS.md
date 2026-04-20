@@ -1,0 +1,19 @@
+- always start by reading relevant `*_developer_guide.md` files for the folders you will modify.
+- always read the developer guide in every folder you work in. if a folder has no developer guide yet, create one named `<folder>_developer_guide.md` and write it for developers who are new to the codebase. these files should never be over 500 lines long.
+- when changing any file, update the developer guide in that folder and in ancestor folders when the developer-facing architecture or behavior changed. these guide files should never be longer than 500 lines long.
+- no code file generated or edited should exceed 1000 lines of code. split files before they cross this limit.
+- whenever creating a new file, choose its folder carefully and create a new folder when needed so responsibility boundaries stay clear.
+- each non-root folder should only have 1 developer guide markdown file, except the repository root which may contain multiple markdown files. operational markdown files such as changelogs, experiment records, and other required project artifacts are allowed in addition to the single guide file. never create summary-only or visualization-only markdown files.
+- keep system temp directories (for example `%TEMP%/`) ignored via `.gitignore`.
+- always ask whether a commit message is good before committing.
+- `.md` files are ignored when counting files in a folder. keep each folder at 10 code files or fewer where practical, and create a new folder before feature growth makes a folder hard to scan.
+- always verify code changes by running the relevant checks, linting and tests.
+- never worry about backward compatibility or legacy functionality. always assume everyone has up to date files.
+- never assume, if something is ambiguous then ask!
+- always repeat to me what i ask and ask clarifying questions to make sure we are on the same page before doing any changes.
+- make sure every function and functionality has a test and that all tests pass.
+- with any change update the changelog.
+- this is a research project every step must be measurable every change must be written we must always keep track of what changed and what effect it had
+- always reference final-grand-plan.md and make sure to add notes there of what was done, what we learned and how the plan changed because of what we learned
+- every change must be vertical meaning we are changing something that can show a result. (Vertical slicing Agile/Scrum)
+- if the current phase all the AI tasks are complete and the human needs to take action let me know what I need to do before the next step

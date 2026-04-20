@@ -1,0 +1,9 @@
+{
+  "run_id": "RUN-000",
+  "phase": "phase-0",
+  "dataset_version": "synthetic-smoke-v1",
+  "model_name": "deterministic-smoke-baseline",
+  "search_radius_m": 100,
+  "area_type": "synthetic",
+  "altitude_band": "50-60m"
+}

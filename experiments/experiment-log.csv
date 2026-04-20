@@ -1,0 +1,2 @@
+run_id,date,git_commit,phase,dataset_version,model_name,config_path,search_radius_m,area_type,altitude_band,train_split,val_split,test_split,primary_metric,primary_metric_value,notes
+RUN-000,2026-04-20,uncommitted,phase-0,synthetic-smoke-v1,deterministic-smoke-baseline,configs/eval/run_000.json,100,synthetic,50-60m,n/a,n/a,n/a,run_status,success,"Phase 0 scaffold generated required artifacts. Direct Python verification passed. Pytest hangs in the current environment and is not yet an accepted verification path."

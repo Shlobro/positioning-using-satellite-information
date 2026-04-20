@@ -1,0 +1,4 @@
+tests/test_smoke_pipeline.py::test_run_smoke_writes_required_artifacts
+tests/test_smoke_pipeline.py::test_run_smoke_writes_yaml_snapshot
+
+2 tests collected in 0.02s

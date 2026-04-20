@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Generated run artifacts
+artifacts/runs/
+artifacts/pytest-cache/
+artifacts/test-temp/
+
+# System temp directories
+%TEMP%/
+tmp/
+temp/

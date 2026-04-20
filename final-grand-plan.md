@@ -1,7 +1,6 @@
 # Final Grand Plan: Satellite-Drone Localization
 
 Created: 2026-04-20
-Supersedes: `claude-plan.txt`, `codex-plan.txt`
 
 ## 1. Objective
 
@@ -682,3 +681,22 @@ The project is only done when all of the following are true:
 - the best model and configuration are reproducible from versioned code and config
 - the operational envelope says clearly where the system works and where it should not be trusted
 
+## 13. Plan Notes
+
+### 2026-04-20
+
+- What was done: Clarified the repository documentation rule so each non-root folder is limited to one developer guide markdown file, while operational markdown files such as changelogs and experiment records are still allowed.
+- What we learned: The original wording conflicted with the plan requirement for `experiments/change-log.md` and would have blocked the project tracking discipline required by this plan.
+- How the plan changed: No phase ordering changed, but Phase 0 and all later phases can now create required operational markdown artifacts without violating the folder guide rule.
+
+### 2026-04-20
+
+- What was done: Built the Phase 0 scaffold with `pyproject.toml`, a minimal importable package, a repository smoke-run command, committed evaluation config, deterministic run artifact generation, and initial tests.
+- What we learned: The smoke pipeline itself works and produces the required `RUN-000` artifacts. The current environment can execute direct Python verification reliably, but `pytest` hangs here and must be isolated separately before it can serve as the project verification gate.
+- How the plan changed: Phase 0 is now materially unblocked at the code and artifact level. Immediate next work should either isolate the `pytest` environment issue or continue into Phase 1 while keeping direct smoke-run verification available.
+
+### 2026-04-20
+
+- What was done: Added a Windows batch verification harness to run smoke checks and isolate pytest execution hangs with bounded subprocess timeouts and per-step logs.
+- What we learned: The agent tool wrapper is not a reliable boundary for diagnosing this pytest issue here, so local user-run verification is the safer path until the blocking condition is understood.
+- How the plan changed: Test verification can continue through a manual bounded harness while pytest runtime behavior is being diagnosed, instead of blocking all progress on the in-session tool limitation.

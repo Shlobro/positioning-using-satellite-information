@@ -1,0 +1,3 @@
+tests/test_cli.py::test_cli_main_creates_run
+
+1 test collected in 0.01s
