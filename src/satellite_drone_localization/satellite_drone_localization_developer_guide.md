@@ -34,6 +34,10 @@ Current responsibilities:
   pretrained neural benchmark can run inside the same recursive crop and
   prior-update interface without becoming mandatory for the default repo
   verification path
+- reject RoMa updates whose fitted transform is geometrically implausible or
+  whose inlier support is spatially degenerate, so false positives fail with
+  explicit fallback reasons instead of becoming confident recursive state
+  updates
 
 Design notes:
 
@@ -87,6 +91,10 @@ Design notes:
   dense correspondences into a robust affine center estimate and keeps explicit
   fallback reasons so neural failures remain inspectable rather than being
   treated as oracle-quality localization.
+- RoMa acceptance now includes spatial-coverage and affine-scale checks in
+  addition to inlier count, inlier ratio, certainty, and reprojection error.
+  This is a first confidence-calibration step aimed at rejecting dense-match
+  false positives before they enter the recursive prior state.
 - The map-constrained sequence policy is measured as a separate scenario. It
   caps search crops to the available calibrated reference extent, shifts the
   crop center back into the tile when possible, keeps failed measurements from

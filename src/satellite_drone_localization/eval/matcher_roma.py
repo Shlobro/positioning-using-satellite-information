@@ -19,6 +19,9 @@ MIN_INLIER_COUNT = 48
 MIN_INLIER_RATIO = 0.12
 MIN_INLIER_MEAN_CERTAINTY = 0.60
 MAX_INLIER_MEAN_REPROJECTION_ERROR_PX = 10.0
+MIN_INLIER_SPATIAL_COVERAGE = 0.35
+MIN_AFFINE_SCALE = 0.55
+MAX_AFFINE_SCALE = 1.80
 DEFAULT_SAMPLE_COUNT = 5000
 
 
@@ -165,6 +168,18 @@ class RoMaRegressionMatcher:
         if mean_reprojection_error > MAX_INLIER_MEAN_REPROJECTION_ERROR_PX:
             return _build_fallback("fallback_roma_high_reprojection_error", measurement_update_radius_m)
 
+        spatial_coverage = _estimate_spatial_coverage(
+            inlier_frame_points=inlier_frame_points,
+            template_width_px=template_width_px,
+            template_height_px=template_height_px,
+        )
+        if spatial_coverage < MIN_INLIER_SPATIAL_COVERAGE:
+            return _build_fallback("fallback_roma_poor_spatial_coverage", measurement_update_radius_m)
+
+        affine_scale = _estimate_affine_scale(affine_matrix)
+        if affine_scale < MIN_AFFINE_SCALE or affine_scale > MAX_AFFINE_SCALE:
+            return _build_fallback("fallback_roma_implausible_scale", measurement_update_radius_m)
+
         center_point = np.array([[[template_width_px / 2.0, template_height_px / 2.0]]], dtype=np.float32)
         transformed_center = cv2.transform(center_point, affine_matrix)[0][0]
         center_x = float(search_left + transformed_center[0])
@@ -281,6 +296,27 @@ def _score_match(
     certainty_component = min(1.0, max(0.0, mean_inlier_certainty))
     reprojection_component = max(0.0, 1.0 - (mean_reprojection_error / 12.0))
     return (0.35 * ratio_component) + (0.45 * certainty_component) + (0.20 * reprojection_component)
+
+
+def _estimate_spatial_coverage(
+    *,
+    inlier_frame_points: np.ndarray,
+    template_width_px: int,
+    template_height_px: int,
+) -> float:
+    """Estimate whether RoMa support spans the frame or only one tiny patch."""
+    if inlier_frame_points.size == 0:
+        return 0.0
+    width_coverage = (float(inlier_frame_points[:, 0].max()) - float(inlier_frame_points[:, 0].min())) / template_width_px
+    height_coverage = (float(inlier_frame_points[:, 1].max()) - float(inlier_frame_points[:, 1].min())) / template_height_px
+    return min(width_coverage, height_coverage)
+
+
+def _estimate_affine_scale(affine_matrix: np.ndarray) -> float:
+    """Return the footprint scale implied by the fitted frame-to-crop transform."""
+    linear = affine_matrix[:, :2]
+    column_scales = np.linalg.norm(linear, axis=0)
+    return float(column_scales.mean())
 
 
 def _derive_confidence_radius_m(

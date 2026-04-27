@@ -11,9 +11,18 @@ from satellite_drone_localization.eval.matcher_roma import RoMaRegressionMatcher
 
 
 class FakeRoMaBackend:
-    def __init__(self, center_x: float, center_y: float) -> None:
+    def __init__(
+        self,
+        center_x: float,
+        center_y: float,
+        *,
+        scale: float = 1.0,
+        coverage_fraction: float = 1.0,
+    ) -> None:
         self.center_x = center_x
         self.center_y = center_y
+        self.scale = scale
+        self.coverage_fraction = coverage_fraction
 
     def match(self, image_a, image_b, *args, device=None):
         return "matches", "certainty"
@@ -26,15 +35,17 @@ class FakeRoMaBackend:
     def to_pixel_coordinates(self, coords, height_a, width_a, height_b=None, width_b=None):
         frame_points: list[list[float]] = []
         crop_points: list[list[float]] = []
-        scale_x = 60.0 / width_a
-        scale_y = 34.0 / height_a
-        offset_x = self.center_x - 30.0
-        offset_y = self.center_y - 17.0
+        span_x = max(2, int((width_a - 1) * self.coverage_fraction))
+        span_y = max(2, int((height_a - 1) * self.coverage_fraction))
+        start_x = (width_a - span_x) / 2.0
+        start_y = (height_a - span_y) / 2.0
+        offset_x = self.center_x - ((width_a / 2.0) * self.scale)
+        offset_y = self.center_y - ((height_a / 2.0) * self.scale)
         for index in range(512):
-            local_x = float((index * 17) % max(1, width_a - 1))
-            local_y = float((index * 11) % max(1, height_a - 1))
+            local_x = start_x + float((index * 17) % span_x)
+            local_y = start_y + float((index * 11) % span_y)
             frame_points.append([local_x, local_y])
-            crop_points.append([(local_x * scale_x) + offset_x, (local_y * scale_y) + offset_y])
+            crop_points.append([(local_x * self.scale) + offset_x, (local_y * self.scale) + offset_y])
         return np.asarray(frame_points, dtype=np.float32), np.asarray(crop_points, dtype=np.float32)
 
 
@@ -145,5 +156,71 @@ def test_roma_matcher_rejects_low_texture_frame() -> None:
 
         assert decision.accepted is False
         assert decision.estimate_source == "fallback_roma_low_texture"
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_roma_matcher_rejects_spatially_degenerate_inliers() -> None:
+    repo_root = make_repo_root()
+    try:
+        map_path = repo_root / "map.png"
+        frame_path = repo_root / "frame.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_path, center_x=112, center_y=100)
+        matcher = RoMaRegressionMatcher(
+            map_path,
+            backend=FakeRoMaBackend(center_x=112.0, center_y=100.0, coverage_fraction=0.10),
+            device="cpu",
+        )
+
+        decision = matcher.match_frame(
+            frame_image_path=frame_path,
+            normalization_rotation_deg=0.0,
+            ground_width_px=60.0,
+            ground_height_px=34.0,
+            crop_min_x=0.0,
+            crop_min_y=0.0,
+            crop_max_x=200.0,
+            crop_max_y=200.0,
+            crop_inside_image=True,
+            measurement_update_radius_m=5.0,
+            georeference_max_residual_m=1.0,
+        )
+
+        assert decision.accepted is False
+        assert decision.estimate_source == "fallback_roma_poor_spatial_coverage"
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_roma_matcher_rejects_implausible_affine_scale() -> None:
+    repo_root = make_repo_root()
+    try:
+        map_path = repo_root / "map.png"
+        frame_path = repo_root / "frame.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_path, center_x=112, center_y=100)
+        matcher = RoMaRegressionMatcher(
+            map_path,
+            backend=FakeRoMaBackend(center_x=112.0, center_y=100.0, scale=2.2),
+            device="cpu",
+        )
+
+        decision = matcher.match_frame(
+            frame_image_path=frame_path,
+            normalization_rotation_deg=0.0,
+            ground_width_px=60.0,
+            ground_height_px=34.0,
+            crop_min_x=0.0,
+            crop_min_y=0.0,
+            crop_max_x=200.0,
+            crop_max_y=200.0,
+            crop_inside_image=True,
+            measurement_update_radius_m=5.0,
+            georeference_max_residual_m=1.0,
+        )
+
+        assert decision.accepted is False
+        assert decision.estimate_source == "fallback_roma_implausible_scale"
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)

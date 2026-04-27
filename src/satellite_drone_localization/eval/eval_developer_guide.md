@@ -60,6 +60,11 @@ Current scope:
   dense correspondences and then fits a robust affine center estimate inside
   the bounded crop. This neural scenario is opt-in so the default verifier
   does not download or initialize large model weights.
+- RoMa acceptance now also requires enough spatial inlier coverage across the
+  frame and a plausible affine footprint scale. Failures are reported as
+  explicit fallback sources (`fallback_roma_poor_spatial_coverage` or
+  `fallback_roma_implausible_scale`) so false-positive rejection stays
+  measurable in replay summaries.
 - When RoMa is enabled, the evaluator also reports
   `recursive_roma_map_constrained_matcher`, which applies the same
   map-limited crop and motion-envelope guard used by the constrained raster

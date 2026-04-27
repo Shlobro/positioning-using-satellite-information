@@ -46,15 +46,13 @@ class FakeRoMaBackend:
 
         frame_points: list[list[float]] = []
         crop_points: list[list[float]] = []
-        scale_x = 60.0 / width_a
-        scale_y = 34.0 / height_a
-        offset_x = self.center_x - 30.0
-        offset_y = self.center_y - 17.0
+        offset_x = self.center_x - (width_a / 2.0)
+        offset_y = self.center_y - (height_a / 2.0)
         for index in range(512):
             local_x = float((index * 17) % max(1, width_a - 1))
             local_y = float((index * 11) % max(1, height_a - 1))
             frame_points.append([local_x, local_y])
-            crop_points.append([(local_x * scale_x) + offset_x, (local_y * scale_y) + offset_y])
+            crop_points.append([local_x + offset_x, local_y + offset_y])
         return np.asarray(frame_points, dtype=np.float32), np.asarray(crop_points, dtype=np.float32)
 
 

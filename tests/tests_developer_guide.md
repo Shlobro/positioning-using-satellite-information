@@ -37,6 +37,9 @@ Current scope:
 - matcher-roma tests verify the optional RoMa matcher can recover a synthetic
   crop center through an injected fake backend and reject low-texture inputs
   without requiring real model downloads during repo verification.
+- matcher-roma tests now also verify false-positive rejection for spatially
+  degenerate inlier support and implausible fitted scale using injected fake
+  backends.
 - sequence-search tests now also cover the map-constrained search policy,
   including crop-center clamping, map-size crop limiting, and rejection of
   constrained RoMa updates that violate the motion envelope.

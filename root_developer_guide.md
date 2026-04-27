@@ -59,6 +59,9 @@ Current verification rule:
   neural scenario. These policies cap oversized crops to the calibrated image
   extent, shift the search center back into the tile when possible, and report
   how often that happened.
+- RoMa matching now has first-pass false-positive rejection for spatially
+  degenerate inlier support and implausible fitted footprint scale. These
+  failures remain visible as explicit fallback sources in sequence artifacts.
 
 Guidelines:
 

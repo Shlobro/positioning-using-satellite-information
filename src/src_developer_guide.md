@@ -43,6 +43,9 @@ Current scope:
   RoMa-backed neural matcher path that is enabled only when the caller asks
   for it, so pretrained benchmarking does not bloat the default verification
   flow.
+- The optional RoMa matcher now rejects geometrically weak dense matches when
+  the fitted footprint scale is implausible or the inlier support covers only a
+  tiny patch of the frame.
 - `satellite_drone_localization/eval/` now also holds sequence policy helpers
   for map-constrained search crops, so boundary-aware bootstrap experiments do
   not bloat the main sequence evaluator.
