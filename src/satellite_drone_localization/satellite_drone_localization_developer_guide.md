@@ -18,6 +18,9 @@ Current responsibilities:
 - fit an affine pixel-to-geographic transform from manually calibrated GIS control points
 - expose a minimal live receiver stub via the `live/` subpackage
 - delegate sequence-specific evaluation workflows to the `eval/` subpackage
+- support an explicit recursive prior-update experiment where the next search
+  center comes from the previous accepted estimate and carries forward a
+  configurable confidence radius
 
 Design notes:
 
@@ -33,3 +36,7 @@ Design notes:
 - The replay pipeline composes replay parsing, geometry, crop planning, and telemetry sensitivity checks into one deterministic artifact set for manual review.
 - `map_georeference.py` fits a least-squares affine transform from four or more calibration points and exposes pixel-to-lat/lon plus inverse lat/lon-to-pixel conversion for GIS reference imagery.
 - The live stub intentionally reuses the replay field names and lowers transport risk by accepting `packet_type: "live_frame"` and converting it into the existing single-frame parsing path.
+- The recursive sequence evaluator still uses hidden truth as an oracle stand-in
+  for an accepted localization result, but it now does so through an explicit
+  state update loop instead of a one-off prior branch. This keeps the control
+  logic measurable before a real matcher exists.

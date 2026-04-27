@@ -12,6 +12,9 @@ Current scope:
 - live-receiver tests verify one `live_frame` packet can be parsed into the existing single-frame geometry and crop path.
 - map-georeference tests verify calibrated GIS control points can be turned into a deterministic pixel-to-lat/lon transform with stable inverse mapping.
 - sequence-search tests verify both the strict seed-only baseline and the oracle previous-truth ceiling against a calibrated GIS reference image.
+- sequence-search tests now also verify the first explicit recursive prior
+  feedback scenario, including its carried confidence radius and prior-source
+  labeling.
 
 Guidelines:
 

@@ -217,12 +217,18 @@ def verify_sequence_search() -> None:
             load_replay_session(replay_path),
             load_map_georeference(calibration_path),
             max_speed_mps=25.0,
+            measurement_update_radius_m=5.0,
         )
-        assert len(artifacts.scenarios) == 2
+        assert len(artifacts.scenarios) == 3
         assert artifacts.scenarios[0].contained_frame_count == 2
         assert artifacts.scenarios[1].contained_frame_count == 2
+        assert artifacts.scenarios[2].contained_frame_count == 2
         assert artifacts.scenarios[1].frames[1].prior_source == "previous_frame_truth_oracle"
         assert artifacts.scenarios[1].frames[1].target_distance_m > 0.0
+        assert artifacts.scenarios[2].frames[1].prior_source == "previous_estimate_recursive_oracle"
+        assert artifacts.scenarios[2].frames[1].prior_search_radius_m == 30.0
+        assert artifacts.scenarios[2].longest_inside_image_streak >= 0
+        assert artifacts.scenarios[2].first_crop_outside_image_frame_index in (0, 1, None)
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 

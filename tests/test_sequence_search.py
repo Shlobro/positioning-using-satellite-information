@@ -6,6 +6,7 @@ import shutil
 import tempfile
 
 from satellite_drone_localization.eval.sequence_search import (
+    SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_SEED_ONLY,
     build_sequence_search_artifacts,
@@ -45,7 +46,7 @@ def write_calibration(path: Path, image_path: Path) -> None:
     )
 
 
-def test_build_sequence_search_artifacts_reports_seed_and_oracle_modes() -> None:
+def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes() -> None:
     repo_root = make_repo_root()
     try:
         replay_path = repo_root / "capture.jsonl"
@@ -88,15 +89,21 @@ def test_build_sequence_search_artifacts_reports_seed_and_oracle_modes() -> None
             load_replay_session(replay_path),
             load_map_georeference(calibration_path),
             max_speed_mps=25.0,
+            measurement_update_radius_m=5.0,
         )
 
         assert [scenario.scenario_name for scenario in artifacts.scenarios] == [
             SCENARIO_SEED_ONLY,
             SCENARIO_ORACLE_PREVIOUS_TRUTH,
+            SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
         ]
         assert artifacts.scenarios[0].frame_count == 2
         assert artifacts.scenarios[0].frames[1].contains_target is True
-        assert artifacts.scenarios[1].frames[1].target_distance_m == 0.0
+        assert artifacts.scenarios[1].frames[1].target_distance_m > 0.0
+        assert artifacts.scenarios[2].frames[1].prior_source == "previous_estimate_recursive_oracle"
+        assert artifacts.scenarios[2].frames[1].prior_search_radius_m == 30.0
+        assert artifacts.scenarios[2].longest_inside_image_streak >= 0
+        assert artifacts.scenarios[2].first_crop_outside_image_frame_index in (0, 1, None)
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -154,7 +161,8 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
 
         summary = json.loads((output_dir / "sequence_search_summary.json").read_text(encoding="utf-8"))
         assert exit_code == 0
-        assert len(summary["scenarios"]) == 2
+        assert len(summary["scenarios"]) == 3
+        assert summary["measurement_update_radius_m"] == 5.0
         assert (output_dir / "sequence_search_debug.svg").exists()
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
@@ -211,6 +219,7 @@ def test_write_sequence_search_artifacts_from_report() -> None:
 
         loaded = json.loads(summary_path.read_text(encoding="utf-8"))
         assert loaded["scenarios"][0]["scenario_name"] == SCENARIO_SEED_ONLY
+        assert loaded["scenarios"][2]["scenario_name"] == SCENARIO_RECURSIVE_ORACLE_ESTIMATE
         assert "Sequence Search Debug" in svg_path.read_text(encoding="utf-8")
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)

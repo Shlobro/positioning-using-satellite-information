@@ -12,6 +12,9 @@ Current scope:
 - `satellite_drone_localization/` now also holds a `live/` subpackage for the minimal live receiver stub.
 - `satellite_drone_localization/` now also holds deterministic map georeferencing code that fits a pixel-to-world transform from manually calibrated GIS control points.
 - `satellite_drone_localization/eval/` now holds offline sequence-evaluation code that tests motion-bounded search windows against calibrated GIS imagery.
+- `satellite_drone_localization/eval/` now also holds the first explicit
+  recursive prior-propagation experiment, so sequence policy changes can be
+  measured before a real image matcher exists.
 
 Guidelines:
 

@@ -28,6 +28,8 @@ Current verification rule:
 - Direct `pytest` invocation from the agent session is not considered a valid default verification path here.
 - Long-running in-session verification commands such as `python scripts/verify_repo.py` may also stall under the agent wrapper, so the user-run local path remains the authoritative verification route.
 - The verification script now checks nine vertical slices: Phase 0 smoke artifacts, Phase 1 replay schema parsing, Phase 1 geometry-report generation, Phase 1 crop-plan generation, the combined Phase 1 replay pipeline, the minimal Phase 1 live receiver stub, the main-package map georeference transform, the sequence-search evaluator, and the standalone map calibrator tool tests.
+- The sequence-search slice now includes the first explicit recursive
+  prior-recentering policy, not just fixed-seed and oracle-baseline comparisons.
 
 Guidelines:
 

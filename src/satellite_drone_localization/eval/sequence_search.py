@@ -16,7 +16,12 @@ from ..packet_replay import ReplaySession
 
 SCENARIO_SEED_ONLY = "seed_only"
 SCENARIO_ORACLE_PREVIOUS_TRUTH = "oracle_previous_truth"
-SCENARIO_NAMES = (SCENARIO_SEED_ONLY, SCENARIO_ORACLE_PREVIOUS_TRUTH)
+SCENARIO_RECURSIVE_ORACLE_ESTIMATE = "recursive_oracle_estimate"
+SCENARIO_NAMES = (
+    SCENARIO_SEED_ONLY,
+    SCENARIO_ORACLE_PREVIOUS_TRUTH,
+    SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
+)
 EARTH_RADIUS_M = 6_378_137.0
 
 
@@ -63,6 +68,9 @@ class SequenceScenarioReport:
     frame_count: int
     contained_frame_count: int
     crop_inside_image_count: int
+    first_target_miss_frame_index: int | None
+    first_crop_outside_image_frame_index: int | None
+    longest_inside_image_streak: int
     max_target_offset_m: float
     average_crop_side_m: float
     frames: list[SequenceFrameResult]
@@ -82,6 +90,7 @@ class SequenceSearchArtifacts:
     seed_longitude_deg: float
     max_speed_mps: float
     base_search_radius_m: float
+    measurement_update_radius_m: float
     scenarios: list[SequenceScenarioReport]
 
 
@@ -91,12 +100,15 @@ def build_sequence_search_artifacts(
     *,
     max_speed_mps: float,
     base_search_radius_m: float = 0.0,
+    measurement_update_radius_m: float = 5.0,
 ) -> SequenceSearchArtifacts:
     """Evaluate multiple motion-bounded prior scenarios for one replay session."""
     if max_speed_mps <= 0.0:
         raise ValueError("max_speed_mps must be positive")
     if base_search_radius_m < 0.0:
         raise ValueError("base_search_radius_m must be non-negative")
+    if measurement_update_radius_m < 0.0:
+        raise ValueError("measurement_update_radius_m must be non-negative")
 
     geometry_report = build_replay_geometry_report(session)
     seed_frame = session.frames[0]
@@ -113,6 +125,7 @@ def build_sequence_search_artifacts(
             geometry_report=geometry_report.frames,
             max_speed_mps=max_speed_mps,
             base_search_radius_m=base_search_radius_m,
+            measurement_update_radius_m=measurement_update_radius_m,
         ),
         build_sequence_scenario_report(
             scenario_name=SCENARIO_ORACLE_PREVIOUS_TRUTH,
@@ -123,6 +136,18 @@ def build_sequence_search_artifacts(
             geometry_report=geometry_report.frames,
             max_speed_mps=max_speed_mps,
             base_search_radius_m=base_search_radius_m,
+            measurement_update_radius_m=measurement_update_radius_m,
+        ),
+        build_sequence_scenario_report(
+            scenario_name=SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
+            session=session,
+            georeference=georeference,
+            timestamps=timestamps,
+            first_timestamp=first_timestamp,
+            geometry_report=geometry_report.frames,
+            max_speed_mps=max_speed_mps,
+            base_search_radius_m=base_search_radius_m,
+            measurement_update_radius_m=measurement_update_radius_m,
         ),
     ]
 
@@ -137,6 +162,7 @@ def build_sequence_search_artifacts(
         seed_longitude_deg=seed_frame.longitude_deg,
         max_speed_mps=max_speed_mps,
         base_search_radius_m=base_search_radius_m,
+        measurement_update_radius_m=measurement_update_radius_m,
         scenarios=scenarios,
     )
 
@@ -151,6 +177,7 @@ def build_sequence_scenario_report(
     geometry_report: list[object],
     max_speed_mps: float,
     base_search_radius_m: float,
+    measurement_update_radius_m: float,
 ) -> SequenceScenarioReport:
     """Evaluate one sequence-prior scenario."""
     if scenario_name not in SCENARIO_NAMES:
@@ -158,6 +185,9 @@ def build_sequence_scenario_report(
 
     seed_frame = session.frames[0]
     results: list[SequenceFrameResult] = []
+    estimated_latitude_deg = seed_frame.latitude_deg
+    estimated_longitude_deg = seed_frame.longitude_deg
+    estimated_confidence_radius_m = base_search_radius_m
 
     for index, (frame, geometry, timestamp) in enumerate(zip(session.frames, geometry_report, timestamps, strict=True)):
         elapsed_seconds = (timestamp - first_timestamp).total_seconds()
@@ -166,20 +196,28 @@ def build_sequence_scenario_report(
             prior_latitude_deg = seed_frame.latitude_deg
             prior_longitude_deg = seed_frame.longitude_deg
             prior_source = "seed_frame_truth"
+            prior_search_radius_m = base_search_radius_m
         elif scenario_name == SCENARIO_SEED_ONLY:
             delta_seconds = elapsed_seconds
             prior_latitude_deg = seed_frame.latitude_deg
             prior_longitude_deg = seed_frame.longitude_deg
             prior_source = "seed_frame_truth"
-        else:
+            prior_search_radius_m = base_search_radius_m + (max_speed_mps * delta_seconds)
+        elif scenario_name == SCENARIO_ORACLE_PREVIOUS_TRUTH:
             previous_frame = session.frames[index - 1]
             previous_timestamp = timestamps[index - 1]
             delta_seconds = (timestamp - previous_timestamp).total_seconds()
             prior_latitude_deg = previous_frame.latitude_deg
             prior_longitude_deg = previous_frame.longitude_deg
             prior_source = "previous_frame_truth_oracle"
-
-        prior_search_radius_m = base_search_radius_m + (max_speed_mps * delta_seconds)
+            prior_search_radius_m = base_search_radius_m + (max_speed_mps * delta_seconds)
+        else:
+            previous_timestamp = timestamps[index - 1]
+            delta_seconds = (timestamp - previous_timestamp).total_seconds()
+            prior_latitude_deg = estimated_latitude_deg
+            prior_longitude_deg = estimated_longitude_deg
+            prior_source = "previous_estimate_recursive_oracle"
+            prior_search_radius_m = estimated_confidence_radius_m + (max_speed_mps * delta_seconds)
         crop_side_m = max(geometry.normalized_crop_size_m, prior_search_radius_m * 2.0 * DEFAULT_CROP_PADDING_FACTOR)
         half_side_m = crop_side_m / 2.0
 
@@ -241,12 +279,26 @@ def build_sequence_scenario_report(
             )
         )
 
+        if scenario_name == SCENARIO_RECURSIVE_ORACLE_ESTIMATE:
+            estimated_latitude_deg = frame.latitude_deg
+            estimated_longitude_deg = frame.longitude_deg
+            estimated_confidence_radius_m = measurement_update_radius_m
+
+    first_target_miss_frame_index = next((index for index, frame in enumerate(results) if not frame.contains_target), None)
+    first_crop_outside_image_frame_index = next(
+        (index for index, frame in enumerate(results) if not frame.crop_inside_image),
+        None,
+    )
+
     return SequenceScenarioReport(
         scenario_name=scenario_name,
         description=describe_scenario(scenario_name),
         frame_count=len(results),
         contained_frame_count=sum(1 for frame in results if frame.contains_target),
         crop_inside_image_count=sum(1 for frame in results if frame.crop_inside_image),
+        first_target_miss_frame_index=first_target_miss_frame_index,
+        first_crop_outside_image_frame_index=first_crop_outside_image_frame_index,
+        longest_inside_image_streak=longest_true_streak(frame.crop_inside_image for frame in results),
         max_target_offset_m=max(frame.target_distance_m for frame in results),
         average_crop_side_m=sum(frame.crop_side_m for frame in results) / len(results),
         frames=results,
@@ -286,6 +338,7 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
         "seed_longitude_deg": artifacts.seed_longitude_deg,
         "max_speed_mps": artifacts.max_speed_mps,
         "base_search_radius_m": artifacts.base_search_radius_m,
+        "measurement_update_radius_m": artifacts.measurement_update_radius_m,
         "scenarios": [
             {
                 "scenario_name": scenario.scenario_name,
@@ -293,6 +346,9 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
                 "frame_count": scenario.frame_count,
                 "contained_frame_count": scenario.contained_frame_count,
                 "crop_inside_image_count": scenario.crop_inside_image_count,
+                "first_target_miss_frame_index": scenario.first_target_miss_frame_index,
+                "first_crop_outside_image_frame_index": scenario.first_crop_outside_image_frame_index,
+                "longest_inside_image_streak": scenario.longest_inside_image_streak,
                 "containment_ratio": scenario.contained_frame_count / scenario.frame_count,
                 "map_coverage_ratio": scenario.crop_inside_image_count / scenario.frame_count,
                 "max_target_offset_m": scenario.max_target_offset_m,
@@ -325,6 +381,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
     scenario_styles = {
         SCENARIO_SEED_ONLY: ("#c05621", "#7d4e57"),
         SCENARIO_ORACLE_PREVIOUS_TRUTH: ("#0f4c5c", "#8ecae6"),
+        SCENARIO_RECURSIVE_ORACLE_ESTIMATE: ("#2b9348", "#b7e4c7"),
     }
     overlay_parts: list[str] = []
     for scenario in artifacts.scenarios:
@@ -345,14 +402,14 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
     text_y = origin_y + map_height + 24.0
     for scenario in artifacts.scenarios:
         summary_lines.append(
-            f'<text x="40" y="{text_y:.0f}" font-family="monospace" font-size="12" fill="#213547">{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} map={scenario.crop_inside_image_count}/{scenario.frame_count} max_offset={scenario.max_target_offset_m:.1f}m avg_crop={scenario.average_crop_side_m:.1f}m</text>'
+            f'<text x="40" y="{text_y:.0f}" font-family="monospace" font-size="12" fill="#213547">{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} map={scenario.crop_inside_image_count}/{scenario.frame_count} first_offmap={format_optional_index(scenario.first_crop_outside_image_frame_index)} streak={scenario.longest_inside_image_streak} max_offset={scenario.max_target_offset_m:.1f}m avg_crop={scenario.average_crop_side_m:.1f}m</text>'
         )
         text_y += 16.0
 
     content = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{int(canvas_width)}" height="{int(text_y + 24.0)}" viewBox="0 0 {int(canvas_width)} {int(text_y + 24.0)}">
   <rect width="{int(canvas_width)}" height="{int(text_y + 24.0)}" fill="#f4f1e8"/>
   <text x="40" y="24" font-family="monospace" font-size="16" fill="#213547">Sequence Search Debug</text>
-  <text x="40" y="42" font-family="monospace" font-size="12" fill="#213547">seed=({artifacts.seed_latitude_deg:.6f}, {artifacts.seed_longitude_deg:.6f}) speed={artifacts.max_speed_mps:.1f}mps base_radius={artifacts.base_search_radius_m:.1f}m residual={artifacts.georeference_max_residual_m:.2f}m</text>
+  <text x="40" y="42" font-family="monospace" font-size="12" fill="#213547">seed=({artifacts.seed_latitude_deg:.6f}, {artifacts.seed_longitude_deg:.6f}) speed={artifacts.max_speed_mps:.1f}mps base_radius={artifacts.base_search_radius_m:.1f}m update_radius={artifacts.measurement_update_radius_m:.1f}m residual={artifacts.georeference_max_residual_m:.2f}m</text>
   <rect x="{origin_x}" y="{origin_y}" width="{map_width:.2f}" height="{map_height:.2f}" fill="#ffffff" stroke="#50623a" stroke-width="2"/>
   {' '.join(overlay_parts)}
   <polyline points="{truth_points}" fill="none" stroke="#213547" stroke-width="2"/>
@@ -368,7 +425,32 @@ def describe_scenario(scenario_name: str) -> str:
         return "Use frame-0 truth as the only seed and grow the search radius over total elapsed time."
     if scenario_name == SCENARIO_ORACLE_PREVIOUS_TRUTH:
         return "Upper-bound ceiling that recenters on the previous frame truth and grows radius only over per-frame delta time."
+    if scenario_name == SCENARIO_RECURSIVE_ORACLE_ESTIMATE:
+        return (
+            "Stateful prior loop that recenters on the previous accepted estimate "
+            "(oracle stand-in uses hidden truth) and carries a configurable post-update confidence radius."
+        )
     raise ValueError(f"unsupported scenario_name '{scenario_name}'")
+
+
+def format_optional_index(index: int | None) -> str:
+    """Format an optional frame index for SVG summary text."""
+    if index is None:
+        return "none"
+    return str(index)
+
+
+def longest_true_streak(values) -> int:
+    """Return the longest consecutive streak of truthy values."""
+    longest = 0
+    current = 0
+    for value in values:
+        if value:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
 
 
 def offset_latlon_by_meters(

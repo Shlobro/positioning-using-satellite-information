@@ -13,6 +13,9 @@ Guidelines:
 - `crop_replay.py` is the Phase 1 crop-debug entry point that turns replay packets plus priors into crop summaries and an SVG overlay.
 - `replay_pipeline.py` is the Phase 1 combined replay entry point that writes one artifact set spanning geometry, crop planning, and sensitivity summaries.
 - `sequence_search_replay.py` is the Phase 1 hidden-GPS sequence entry point that compares motion-bounded search windows against a calibrated GIS reference image.
+- `sequence_search_replay.py` now also exposes
+  `--measurement-update-radius-m` so the first recursive prior-feedback policy
+  can be measured from the command line.
 - `live_receiver_stub.py` is the Phase 1 minimal live intake entry point for one `live_frame` packet.
 - Repository-facing Python scripts should bootstrap `src/` explicitly so `python scripts/<tool>.py` works on a fresh checkout without installing the package first.
 - `verify_repo.py` is the deterministic repository verification path when direct `pytest` execution is not trustworthy in the local shell wrapper.

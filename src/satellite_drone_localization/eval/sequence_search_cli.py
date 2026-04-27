@@ -37,6 +37,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional non-negative starting search radius around the seed location. Defaults to 0.0.",
     )
     parser.add_argument(
+        "--measurement-update-radius-m",
+        type=float,
+        default=5.0,
+        help=(
+            "Post-update confidence radius in meters for the recursive-oracle scenario. "
+            "Defaults to 5.0."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         default=None,
         help="Optional output directory. Defaults to artifacts/sequence-search/<replay-stem> under the current working directory.",
@@ -57,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         georeference,
         max_speed_mps=args.max_speed_mps,
         base_search_radius_m=args.base_search_radius_m,
+        measurement_update_radius_m=args.measurement_update_radius_m,
     )
 
     if args.output_dir:
