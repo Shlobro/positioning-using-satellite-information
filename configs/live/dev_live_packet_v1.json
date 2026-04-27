@@ -1,0 +1,15 @@
+{
+  "packet_type": "live_frame",
+  "timestamp_utc": "2026-04-20T10:15:30Z",
+  "image_name": "frame_0001.jpg",
+  "latitude_deg": 32.0853,
+  "longitude_deg": 34.7818,
+  "prior_latitude_deg": 32.08529,
+  "prior_longitude_deg": 34.78177,
+  "altitude_m": 52.4,
+  "heading_deg": 91.2,
+  "camera_hfov_deg": 84.0,
+  "frame_width_px": 4000,
+  "frame_height_px": 3000,
+  "prior_search_radius_m": 25.0
+}

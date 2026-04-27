@@ -1,0 +1,41 @@
+{
+  "session_id": "DEV-SESSION-001",
+  "source_path": "C:\\Users\\shlob\\Pycharm Projects\\Satellite-drone-localization\\configs\\replay\\dev_packets_v1.jsonl",
+  "frame_count": 2,
+  "average_crop_side_m": 92.55793963521384,
+  "max_target_offset_m": 4.377080811799742,
+  "frames": [
+    {
+      "timestamp_utc": "2026-04-20T10:15:30Z",
+      "image_name": "frame_0001.jpg",
+      "prior_latitude_deg": 32.08529,
+      "prior_longitude_deg": 34.78177,
+      "target_latitude_deg": 32.0853,
+      "target_longitude_deg": 34.7818,
+      "prior_search_radius_m": 25.0,
+      "crop_side_m": 94.36234384241362,
+      "target_offset_east_m": 2.829490954279372,
+      "target_offset_north_m": 1.1131949074951064,
+      "target_x_in_crop_01": 0.5299853822940712,
+      "target_y_in_crop_01": 0.48820297523179207,
+      "contains_target": true,
+      "normalized_rotation_deg": 268.8
+    },
+    {
+      "timestamp_utc": "2026-04-20T10:15:31Z",
+      "image_name": "frame_0002.jpg",
+      "prior_latitude_deg": 32.08534,
+      "prior_longitude_deg": 34.78179,
+      "target_latitude_deg": 32.08531,
+      "target_longitude_deg": 34.78182,
+      "prior_search_radius_m": 25.0,
+      "crop_side_m": 90.75353542801406,
+      "target_offset_east_m": 2.8294894069075545,
+      "target_offset_north_m": -3.3395847240672643,
+      "target_x_in_crop_01": 0.5311777320141089,
+      "target_y_in_crop_01": 0.5367983980824221,
+      "contains_target": true,
+      "normalized_rotation_deg": 269.2
+    }
+  ]
+}

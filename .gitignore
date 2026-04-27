@@ -17,3 +17,10 @@ artifacts/test-temp/
 %TEMP%/
 tmp/
 temp/
+
+# IDE and local settings
+.claude/
+.idea/
+.vscode/
+.env
+.DS_Store

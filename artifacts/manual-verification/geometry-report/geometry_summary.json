@@ -1,0 +1,52 @@
+{
+  "session_id": "DEV-SESSION-001",
+  "source_path": "C:\\Users\\shlob\\Pycharm Projects\\Satellite-drone-localization\\configs\\replay\\dev_packets_v1.jsonl",
+  "frame_count": 2,
+  "average_altitude_m": 52.3,
+  "min_ground_width_m": 90.75353542801406,
+  "max_ground_width_m": 94.36234384241362,
+  "min_ground_height_m": 68.06515157101055,
+  "max_ground_height_m": 70.77175788181023,
+  "frames": [
+    {
+      "timestamp_utc": "2026-04-20T10:15:30Z",
+      "image_name": "frame_0001.jpg",
+      "latitude_deg": 32.0853,
+      "longitude_deg": 34.7818,
+      "altitude_m": 52.4,
+      "altitude_reference": "agl",
+      "heading_deg": 91.2,
+      "normalization_rotation_deg": 268.8,
+      "camera_hfov_deg": 84.0,
+      "camera_vfov_deg": 68.0625523936005,
+      "vfov_source": "inferred_from_aspect_ratio",
+      "ground_width_m": 94.36234384241362,
+      "ground_height_m": 70.77175788181023,
+      "normalized_crop_size_m": 94.36234384241362,
+      "meters_per_pixel_x": 0.023590585960603407,
+      "meters_per_pixel_y": 0.02359058596060341,
+      "frame_width_px": 4000,
+      "frame_height_px": 3000
+    },
+    {
+      "timestamp_utc": "2026-04-20T10:15:31Z",
+      "image_name": "frame_0002.jpg",
+      "latitude_deg": 32.08531,
+      "longitude_deg": 34.78182,
+      "altitude_m": 52.2,
+      "altitude_reference": "agl",
+      "heading_deg": 90.8,
+      "normalization_rotation_deg": 269.2,
+      "camera_hfov_deg": 82.0,
+      "camera_vfov_deg": 66.2058907359206,
+      "vfov_source": "inferred_from_aspect_ratio",
+      "ground_width_m": 90.75353542801406,
+      "ground_height_m": 68.06515157101055,
+      "normalized_crop_size_m": 90.75353542801406,
+      "meters_per_pixel_x": 0.022688383857003516,
+      "meters_per_pixel_y": 0.022688383857003516,
+      "frame_width_px": 4000,
+      "frame_height_px": 3000
+    }
+  ]
+}
