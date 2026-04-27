@@ -211,6 +211,12 @@
 - actual result: Root instructions now tell the agent to recognize a clean verified vertical slice as a good commit point and ask the user whether they want to commit, while avoiding premature commit prompts during partial work.
 
 - owner: Codex
+- files changed: `.gitignore`, `root_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Keep generated verification outputs and ad hoc local helper wrappers out of version control so the worktree stays focused on real project artifacts.
+- linked run_ids: none
+- actual result: The repository now ignores `artifacts/manual-verification/`, script backup files, and the local `scripts/sequence-search-replay.bat` helper, matching the documented rule that manual-verification outputs and one-off wrappers are not committed project assets.
+
+- owner: Codex
 - files changed: `artifacts/manual-verification/`, `scripts/run_pytest_isolation.bat`, `experiments/change-log.md`, `final-grand-plan.md`
 - intent: Update manual verification artifacts to reflect the new project root and improve the robustness of the verification script.
 - linked run_ids: none

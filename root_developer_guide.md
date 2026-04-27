@@ -49,3 +49,7 @@ Guidelines:
 - Keep project-level workflow decisions documented here and in `final-grand-plan.md`.
 - Keep operational records in `experiments/`.
 - Prefer repository-facing scripts under `scripts/` rather than ad hoc shell snippets.
+- Generated verification outputs under `artifacts/manual-verification/` should
+  stay ignored, and one-off local helper wrappers or backup files in `scripts/`
+  should not be committed unless they are deliberately promoted into supported
+  repository tooling.

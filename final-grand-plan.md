@@ -883,6 +883,12 @@ The project is only done when all of the following are true:
 
 ### 2026-04-27
 
+- What was done: Tightened `.gitignore` so generated manual-verification outputs and ad hoc local helper wrappers are excluded from version control by default.
+- What we learned: Verification evidence still needs to be produced and reviewed, but the generated files themselves are operational byproducts, not durable source artifacts. Local helper batch files also create noise unless they are intentionally adopted as supported repo tools.
+- How the plan changed: The repo should continue to treat `artifacts/manual-verification/` as disposable output space, and temporary script wrappers or backup files should stay ignored unless they are formalized into documented tooling.
+
+### 2026-04-27
+
 - What was done: Updated manual verification artifacts to reflect the new project root and improved the robustness of the verification script.
 - What we learned: Keeping artifacts up to date with the current environment ensures that verification remains measurable and reproducible across different machines or project locations.
 - How the plan changed: No phase ordering changed, but environmental hardening is now part of the recorded maintenance discipline.

@@ -10,6 +10,7 @@ build/
 
 # Generated run artifacts
 artifacts/runs/
+artifacts/manual-verification/
 artifacts/pytest-cache/
 artifacts/test-temp/
 
@@ -24,3 +25,7 @@ temp/
 .vscode/
 .env
 .DS_Store
+
+# Local helper leftovers
+scripts/*.bak
+scripts/sequence-search-replay.bat
