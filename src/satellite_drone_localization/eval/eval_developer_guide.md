@@ -34,6 +34,14 @@ Current scope:
   ranking bias before accepting a template match. This keeps ambiguous visual
   evidence from jumping as aggressively across the crop while preserving the
   same scenario and artifact schema.
+- The image baseline now also uses a coarse-to-fine search. It scores a coarse
+  grid first, then refines the best candidates at per-pixel resolution with a
+  blended edge-plus-grayscale score and a small winner-over-runner-up margin
+  check. This keeps the baseline simple while making sub-stride corrections
+  and repeated-pattern ambiguity measurable.
+- The winner-over-runner-up ambiguity check now ignores neighboring pixels that
+  belong to the same local peak. Only a materially separated second location is
+  treated as a true ambiguous alternative.
 
 Guidelines:
 

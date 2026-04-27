@@ -124,12 +124,13 @@ def verify_live_receiver() -> None:
 def verify_map_georeference() -> None:
     repo_root = make_repo_root()
     try:
+        map_path = repo_root / "map.png"
         calibration_path = repo_root / "calibration.json"
+        Image.new("RGB", (120, 240), color=(48, 96, 144)).save(map_path)
         calibration_path.write_text(
             json.dumps(
                 {
-                    "image": str(repo_root / "map.png"),
-                    "image_size_px": [200, 200],
+                    "image": "C:/old-machine/project/data/map.png",
                     "calibration_points": [
                         {"pixel": [0, 0], "gps": {"lat": 31.0, "lng": 35.0}},
                         {"pixel": [100, 0], "gps": {"lat": 31.0, "lng": 35.001}},
@@ -142,6 +143,9 @@ def verify_map_georeference() -> None:
         )
 
         georeference = load_map_georeference(calibration_path)
+        assert georeference.image_path == map_path.resolve()
+        assert georeference.image_width_px == 120
+        assert georeference.image_height_px == 240
         latitude_deg, longitude_deg = georeference.pixel_to_latlon(50.0, 100.0)
         assert abs(latitude_deg - 30.9995) < 1e-7
         assert abs(longitude_deg - 35.0005) < 1e-7

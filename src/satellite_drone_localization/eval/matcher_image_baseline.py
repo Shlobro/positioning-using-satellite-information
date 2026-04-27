@@ -13,6 +13,9 @@ COMPARISON_SIZE_PX = (32, 32)
 MIN_ACCEPTED_MATCH_SCORE = 0.70
 MIN_TEMPLATE_TEXTURE_STDDEV = 4.0
 CENTER_DISTANCE_SCORE_PENALTY = 0.12
+INTENSITY_SCORE_WEIGHT = 0.35
+REFINEMENT_TOP_CANDIDATES = 3
+RUNNER_UP_MIN_SEPARATION_PX = 6
 
 
 @dataclass(frozen=True)
@@ -125,45 +128,22 @@ class ImageBaselineMatcher:
             )
 
         map_crop = self._map_edge_image.crop((search_left, search_top, search_right, search_bottom))
-        best_rank_score = -1.0
-        best_visual_score = -1.0
-        runner_up_visual_score = -1.0
-        best_position = None
 
         step_x = max(1, min(8, template_width_px // 6 or 1))
         step_y = max(1, min(8, template_height_px // 6 or 1))
         candidate_xs = _build_candidate_positions(search_width_px - template_width_px, step_x)
         candidate_ys = _build_candidate_positions(search_height_px - template_height_px, step_y)
-
-        for local_y in candidate_ys:
-            for local_x in candidate_xs:
-                candidate = map_crop.crop(
-                    (
-                        local_x,
-                        local_y,
-                        local_x + template_width_px,
-                        local_y + template_height_px,
-                    )
-                )
-                candidate = _prepare_match_image(candidate)
-                score = _score_images(frame_template, candidate)
-                rank_score = score - _center_distance_penalty(
-                    local_x=local_x,
-                    local_y=local_y,
-                    template_width_px=template_width_px,
-                    template_height_px=template_height_px,
-                    search_width_px=search_width_px,
-                    search_height_px=search_height_px,
-                )
-                if rank_score > best_rank_score:
-                    runner_up_visual_score = best_visual_score
-                    best_rank_score = rank_score
-                    best_visual_score = score
-                    best_position = (local_x, local_y)
-                elif score > runner_up_visual_score:
-                    runner_up_visual_score = score
-
-        if best_position is None:
+        coarse_candidates = _collect_candidates(
+            map_crop=map_crop,
+            frame_template=frame_template,
+            template_width_px=template_width_px,
+            template_height_px=template_height_px,
+            search_width_px=search_width_px,
+            search_height_px=search_height_px,
+            candidate_xs=candidate_xs,
+            candidate_ys=candidate_ys,
+        )
+        if not coarse_candidates:
             return ImageBaselineMatchDecision(
                 accepted=False,
                 estimate_source="fallback_image_no_candidates",
@@ -174,25 +154,62 @@ class ImageBaselineMatcher:
                 runner_up_match_score=None,
             )
 
-        runner_up_score_out = runner_up_visual_score if runner_up_visual_score >= 0.0 else None
-        if not _is_match_acceptable(best_score=best_visual_score):
+        best_coarse_positions = {
+            (candidate.local_x, candidate.local_y)
+            for candidate in coarse_candidates[:REFINEMENT_TOP_CANDIDATES]
+        }
+        refined_candidates = _collect_refined_candidates(
+            map_crop=map_crop,
+            frame_template=frame_template,
+            template_width_px=template_width_px,
+            template_height_px=template_height_px,
+            search_width_px=search_width_px,
+            search_height_px=search_height_px,
+            max_offset_x=search_width_px - template_width_px,
+            max_offset_y=search_height_px - template_height_px,
+            coarse_positions=best_coarse_positions,
+            refine_radius_x=step_x,
+            refine_radius_y=step_y,
+        )
+        if not refined_candidates:
+            return ImageBaselineMatchDecision(
+                accepted=False,
+                estimate_source="fallback_image_no_candidates",
+                confidence_radius_m=measurement_update_radius_m,
+                estimated_pixel_x=0.0,
+                estimated_pixel_y=0.0,
+                match_score=None,
+                runner_up_match_score=None,
+            )
+
+        best_candidate = refined_candidates[0]
+        runner_up_score_out = _find_distinct_runner_up_score(
+            best_candidate=best_candidate,
+            candidates=refined_candidates[1:],
+        )
+
+        if not _is_match_acceptable(
+            best_score=best_candidate.visual_score,
+            runner_up_score=runner_up_score_out,
+        ):
             return ImageBaselineMatchDecision(
                 accepted=False,
                 estimate_source="fallback_image_ambiguous_match",
                 confidence_radius_m=measurement_update_radius_m,
                 estimated_pixel_x=0.0,
                 estimated_pixel_y=0.0,
-                match_score=best_visual_score,
+                match_score=best_candidate.visual_score,
                 runner_up_match_score=runner_up_score_out,
             )
 
-        best_local_x, best_local_y = best_position
+        best_local_x = best_candidate.local_x
+        best_local_y = best_candidate.local_y
         center_x = search_left + best_local_x + (template_width_px / 2.0)
         center_y = search_top + best_local_y + (template_height_px / 2.0)
         confidence_radius_m = _derive_confidence_radius_m(
             measurement_update_radius_m=measurement_update_radius_m,
             georeference_max_residual_m=georeference_max_residual_m,
-            best_score=best_visual_score,
+            best_score=best_candidate.visual_score,
         )
         return ImageBaselineMatchDecision(
             accepted=True,
@@ -200,9 +217,19 @@ class ImageBaselineMatcher:
             confidence_radius_m=confidence_radius_m,
             estimated_pixel_x=center_x,
             estimated_pixel_y=center_y,
-            match_score=best_visual_score,
+            match_score=best_candidate.visual_score,
             runner_up_match_score=runner_up_score_out,
         )
+
+
+@dataclass(frozen=True)
+class MatchCandidate:
+    """Scored candidate position inside one search crop."""
+
+    local_x: int
+    local_y: int
+    visual_score: float
+    rank_score: float
 
 
 def _build_candidate_positions(max_offset_px: int, step_px: int) -> list[int]:
@@ -252,14 +279,137 @@ def _load_frame_template(
 
 def _prepare_match_image(image: Image.Image) -> Image.Image:
     prepared = image.resize(COMPARISON_SIZE_PX, resample=Image.Resampling.BILINEAR)
-    prepared = ImageOps.autocontrast(prepared)
-    return prepared.filter(ImageFilter.FIND_EDGES)
+    grayscale = ImageOps.autocontrast(prepared)
+    edges = grayscale.filter(ImageFilter.FIND_EDGES)
+    edges = ImageOps.autocontrast(edges)
+    return Image.blend(edges, grayscale, INTENSITY_SCORE_WEIGHT)
 
 
 def _score_images(left: Image.Image, right: Image.Image) -> float:
     diff = ImageChops.difference(left, right)
     mean_diff = ImageStat.Stat(diff).mean[0]
     return max(0.0, 1.0 - (mean_diff / 255.0))
+
+
+def _collect_candidates(
+    *,
+    map_crop: Image.Image,
+    frame_template: Image.Image,
+    template_width_px: int,
+    template_height_px: int,
+    search_width_px: int,
+    search_height_px: int,
+    candidate_xs: list[int],
+    candidate_ys: list[int],
+) -> list[MatchCandidate]:
+    candidates: list[MatchCandidate] = []
+    for local_y in candidate_ys:
+        for local_x in candidate_xs:
+            candidate = _score_candidate(
+                map_crop=map_crop,
+                frame_template=frame_template,
+                template_width_px=template_width_px,
+                template_height_px=template_height_px,
+                search_width_px=search_width_px,
+                search_height_px=search_height_px,
+                local_x=local_x,
+                local_y=local_y,
+            )
+            candidates.append(candidate)
+    candidates.sort(key=lambda candidate: (candidate.rank_score, candidate.visual_score), reverse=True)
+    return candidates
+
+
+def _collect_refined_candidates(
+    *,
+    map_crop: Image.Image,
+    frame_template: Image.Image,
+    template_width_px: int,
+    template_height_px: int,
+    search_width_px: int,
+    search_height_px: int,
+    max_offset_x: int,
+    max_offset_y: int,
+    coarse_positions: set[tuple[int, int]],
+    refine_radius_x: int,
+    refine_radius_y: int,
+) -> list[MatchCandidate]:
+    refined_positions: set[tuple[int, int]] = set()
+    for coarse_x, coarse_y in coarse_positions:
+        min_x = max(0, coarse_x - refine_radius_x)
+        max_x = min(max_offset_x, coarse_x + refine_radius_x)
+        min_y = max(0, coarse_y - refine_radius_y)
+        max_y = min(max_offset_y, coarse_y + refine_radius_y)
+        for local_y in range(min_y, max_y + 1):
+            for local_x in range(min_x, max_x + 1):
+                refined_positions.add((local_x, local_y))
+
+    candidates = [
+        _score_candidate(
+            map_crop=map_crop,
+            frame_template=frame_template,
+            template_width_px=template_width_px,
+            template_height_px=template_height_px,
+            search_width_px=search_width_px,
+            search_height_px=search_height_px,
+            local_x=local_x,
+            local_y=local_y,
+        )
+        for local_x, local_y in sorted(refined_positions)
+    ]
+    candidates.sort(key=lambda candidate: (candidate.rank_score, candidate.visual_score), reverse=True)
+    return candidates
+
+
+def _score_candidate(
+    *,
+    map_crop: Image.Image,
+    frame_template: Image.Image,
+    template_width_px: int,
+    template_height_px: int,
+    search_width_px: int,
+    search_height_px: int,
+    local_x: int,
+    local_y: int,
+) -> MatchCandidate:
+    candidate = map_crop.crop(
+        (
+            local_x,
+            local_y,
+            local_x + template_width_px,
+            local_y + template_height_px,
+        )
+    )
+    prepared_candidate = _prepare_match_image(candidate)
+    score = _score_images(frame_template, prepared_candidate)
+    rank_score = score - _center_distance_penalty(
+        local_x=local_x,
+        local_y=local_y,
+        template_width_px=template_width_px,
+        template_height_px=template_height_px,
+        search_width_px=search_width_px,
+        search_height_px=search_height_px,
+    )
+    return MatchCandidate(
+        local_x=local_x,
+        local_y=local_y,
+        visual_score=score,
+        rank_score=rank_score,
+    )
+
+
+def _find_distinct_runner_up_score(
+    *,
+    best_candidate: MatchCandidate,
+    candidates: list[MatchCandidate],
+) -> float | None:
+    for candidate in candidates:
+        if (
+            abs(candidate.local_x - best_candidate.local_x) >= RUNNER_UP_MIN_SEPARATION_PX
+            or abs(candidate.local_y - best_candidate.local_y) >= RUNNER_UP_MIN_SEPARATION_PX
+        ):
+            return candidate.visual_score
+    return None
 
 
 def _center_distance_penalty(
@@ -286,8 +436,12 @@ def _image_texture_stddev(image: Image.Image) -> float:
     return ImageStat.Stat(image).stddev[0]
 
 
-def _is_match_acceptable(*, best_score: float) -> bool:
-    return best_score >= MIN_ACCEPTED_MATCH_SCORE
+def _is_match_acceptable(*, best_score: float, runner_up_score: float | None) -> bool:
+    if best_score < MIN_ACCEPTED_MATCH_SCORE:
+        return False
+    if runner_up_score is None:
+        return True
+    return (best_score - runner_up_score) >= 0.015
 
 
 def _derive_confidence_radius_m(

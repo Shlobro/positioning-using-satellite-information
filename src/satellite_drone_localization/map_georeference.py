@@ -113,10 +113,7 @@ def load_map_georeference(calibration_path: Path) -> MapGeoreference:
     resolved_path = calibration_path.resolve()
     payload = json.loads(resolved_path.read_text(encoding="utf-8"))
 
-    image_path_value = payload.get("image")
-    if not isinstance(image_path_value, str) or not image_path_value.strip():
-        raise ValueError("calibration file requires a non-empty 'image' path")
-    image_path = Path(image_path_value).resolve()
+    image_path = resolve_image_path(resolved_path, payload)
     image_width_px, image_height_px = resolve_image_size(payload, image_path)
 
     raw_points = payload.get("calibration_points")
@@ -162,6 +159,25 @@ def load_map_georeference(calibration_path: Path) -> MapGeoreference:
         north_coefficients=north_coefficients,
         residuals=residuals,
     )
+
+
+def resolve_image_path(calibration_path: Path, payload: dict[str, object]) -> Path:
+    """Resolve the calibrated image path relative to the calibration file when needed."""
+    image_path_value = payload.get("image")
+    if not isinstance(image_path_value, str) or not image_path_value.strip():
+        raise ValueError("calibration file requires a non-empty 'image' path")
+
+    raw_path = Path(image_path_value)
+    if raw_path.is_absolute():
+        absolute_candidate = raw_path.resolve()
+        if absolute_candidate.exists():
+            return absolute_candidate
+        sibling_candidate = (calibration_path.parent / raw_path.name).resolve()
+        if sibling_candidate.exists():
+            return sibling_candidate
+        return absolute_candidate
+
+    return (calibration_path.parent / raw_path).resolve()
 
 
 def parse_calibration_point(payload: object) -> CalibrationPoint:

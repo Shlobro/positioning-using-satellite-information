@@ -41,6 +41,9 @@ Design notes:
 - Crop side length is the larger of the normalized geometry footprint and a padded prior-search window, so the crop plan remains explicit about both sensor footprint and prior uncertainty.
 - The replay pipeline composes replay parsing, geometry, crop planning, and telemetry sensitivity checks into one deterministic artifact set for manual review.
 - `map_georeference.py` fits a least-squares affine transform from four or more calibration points and exposes pixel-to-lat/lon plus inverse lat/lon-to-pixel conversion for GIS reference imagery.
+- Calibration sidecars should store portable relative image paths. The loader
+  still tolerates a stale absolute path by falling back to a sibling image with
+  the same filename, which makes repo moves and machine changes less brittle.
 - The live stub intentionally reuses the replay field names and lowers transport risk by accepting `packet_type: "live_frame"` and converting it into the existing single-frame parsing path.
 - The recursive sequence evaluator still uses hidden truth as an oracle stand-in
   for an accepted localization result, but it now does so through an explicit
@@ -58,3 +61,12 @@ Design notes:
   prior-center ranking bias when visual scores are close. This makes recursive
   feedback less likely to jump far from the current prior on ambiguous crops,
   but it remains a simple diagnostic baseline.
+- The image baseline now also refines the strongest coarse candidates at
+  per-pixel resolution and scores candidates with blended edge and grayscale
+  evidence. This keeps the baseline lightweight while reducing stride-induced
+  quantization error and making repeated-pattern ambiguity visible through the
+  acceptance gate.
+- The ambiguity gate now looks for a runner-up that is meaningfully separated
+  from the best location before declaring the match ambiguous. Nearby pixels on
+  the same peak are treated as one local optimum rather than as evidence of a
+  repeated-pattern failure.

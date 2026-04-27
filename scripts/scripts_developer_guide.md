@@ -29,6 +29,9 @@ Guidelines:
 - `run_pytest_isolation.bat` should pause before exit on both success and failure so the user can copy terminal output without reopening logs.
 - `verify_repo.py` now also exercises the map calibrator headless tests as a seventh verification slice.
 - `verify_repo.py` now also exercises the main-package map georeference transform as an eighth verification slice.
+- The map-georeference verification slice now also checks that a stale absolute
+  calibration image path can fall back to a sibling PNG in the current working
+  tree, so portable session data stays runnable after repository moves.
 - `verify_repo.py` now also exercises the sequence-search evaluator as a ninth verification slice.
 - The sequence-search verification slice now also checks the deterministic
   placeholder matcher scenario with a centered synthetic map fixture.

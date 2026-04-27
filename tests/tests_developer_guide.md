@@ -11,6 +11,8 @@ Current scope:
 - replay-pipeline tests verify the combined artifact set and the first telemetry sensitivity summaries.
 - live-receiver tests verify one `live_frame` packet can be parsed into the existing single-frame geometry and crop path.
 - map-georeference tests verify calibrated GIS control points can be turned into a deterministic pixel-to-lat/lon transform with stable inverse mapping.
+- map-georeference tests now also verify portable relative image references and
+  fallback recovery from stale absolute paths in calibration sidecars.
 - sequence-search tests verify both the strict seed-only baseline and the oracle previous-truth ceiling against a calibrated GIS reference image.
 - sequence-search tests now also verify the first explicit recursive prior
   feedback scenario, including its carried confidence radius and prior-source
@@ -23,6 +25,12 @@ Current scope:
   the search crop leaves the image.
 - matcher-image-baseline tests also verify the low-texture rejection path so a
   blank or uninformative crop does not become a confident recursive update.
+- matcher-image-baseline tests now also verify coarse-to-fine refinement and
+  repeated-pattern ambiguity rejection, so acceptance changes remain
+  measurable and deterministic.
+- matcher-image-baseline tests now also verify that local near-ties around one
+  true peak are accepted, while genuinely separate repeated-pattern peaks are
+  still rejected.
 
 Guidelines:
 

@@ -8,7 +8,8 @@ Current contents:
 - `GIS system roof next to labs in college.png` is the north-up GIS export that
   covers the full flight path.
 - `GIS system roof next to labs in college_calibration.json` stores four
-  pixel-to-geographic control points.
+  pixel-to-geographic control points and references the PNG by a portable
+  relative path.
 
 Calibration rules:
 
@@ -18,3 +19,5 @@ Calibration rules:
   fixed landmarks such as roof or pavement corners.
 - If calibration coordinates were copied from a web map in `lng, lat` order,
   convert them before saving the JSON sidecar.
+- Calibration `image` paths should stay relative to this folder so the session
+  remains portable across machines and repository locations.

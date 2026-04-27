@@ -11,6 +11,9 @@ Current scope:
 - `satellite_drone_localization/` now also holds the combined replay pipeline and sensitivity-report code.
 - `satellite_drone_localization/` now also holds a `live/` subpackage for the minimal live receiver stub.
 - `satellite_drone_localization/` now also holds deterministic map georeferencing code that fits a pixel-to-world transform from manually calibrated GIS control points.
+- The map georeference loader now resolves calibration image paths relative to
+  the calibration file when possible, and falls back from stale absolute paths
+  to a sibling image with the same filename.
 - `satellite_drone_localization/eval/` now holds offline sequence-evaluation code that tests motion-bounded search windows against calibrated GIS imagery.
 - `satellite_drone_localization/eval/` now also holds the first explicit
   recursive prior-propagation experiment, so sequence policy changes can be
@@ -24,6 +27,14 @@ Current scope:
 - `satellite_drone_localization/eval/` now also applies first-pass acceptance
   safeguards to that image baseline, including low-texture fallback and
   prior-centered candidate ranking.
+- `satellite_drone_localization/eval/` now also uses a coarse-to-fine local
+  search and a blended edge-plus-grayscale comparison score so the simple
+  image matcher can refine within the crop more accurately and reject repeated
+  visual patterns more honestly.
+- The matcher ambiguity gate now distinguishes between a genuinely different
+  second location and a near-duplicate pixel around the same local optimum, so
+  verification fixtures do not reject good peaks just because the response
+  surface is smooth.
 
 Guidelines:
 

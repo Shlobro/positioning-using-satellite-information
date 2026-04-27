@@ -24,3 +24,5 @@ Guidelines:
   scattering them across the repo.
 - If you regenerate calibration or telemetry files, preserve the filename stem so
   downstream tooling can continue to find related assets predictably.
+- Keep calibration sidecars portable by storing image references relative to the
+  calibration JSON whenever the PNG lives in the same session folder tree.

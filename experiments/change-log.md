@@ -187,6 +187,30 @@
 - actual result: The image baseline now rejects low-texture templates and ranks candidate matches with a small prior-center penalty when visual scores are close. On `DEV-SESSION-20260427T112451Z`, the `recursive_image_baseline_matcher` scenario improved from `map=13/92`, `err_mean=44.93m`, and `max_offset=62.82m` to `map=92/92`, `err_mean=17.34m`, and `max_offset=56.61m`. The result is materially better but still not strong enough to replace the placeholder or oracle ceilings.
 
 - owner: Codex
+- files changed: `src/satellite_drone_localization/eval/matcher_image_baseline.py`, `tests/test_matcher_image_baseline.py`, `tests/test_sequence_search.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Improve the simple recursive image baseline again by reducing coarse-stride localization error and making repeated-pattern matches fail honestly instead of drifting the prior.
+- linked run_ids: none
+- actual result: The image baseline now uses a coarse-to-fine search, blends grayscale with edge evidence, and rejects near-tie matches through a winner-over-runner-up margin gate. Deterministic tests now cover sub-stride refinement and ambiguous repeated-pattern fallback. Real-session impact still needs to be measured through the required user-run verification and replay evaluation path.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/matcher_image_baseline.py`, `tests/test_matcher_image_baseline.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Fix the new ambiguity gate after local verification showed it was treating neighboring pixels on the same response peak as if they were distinct competing matches.
+- linked run_ids: none
+- actual result: The matcher now only uses a materially separated runner-up location for ambiguity rejection. That preserves repeated-pattern fallback behavior while allowing smooth local peaks in the synthetic verification fixture and similar real crops to be accepted.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/map_georeference.py`, `tests/test_map_georeference.py`, `scripts/verify_repo.py`, `data/DEV-SESSION-20260427T112451Z/Frame from satellite/GIS system roof next to labs in college_calibration.json`, developer guides, `AGENTS.md`, `root_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Remove machine-specific calibration image paths and document that agents should request escalation when a necessary repository Python command cannot reach the user's local interpreter.
+- linked run_ids: none
+- actual result: Calibration sidecars can now use relative image references, the loader falls back from stale absolute paths to a sibling PNG, deterministic tests and repo verification cover that portability behavior, and the root agent instructions now explain when to escalate Python commands instead of treating sandbox failures as proof that Python cannot be used.
+
+- owner: Codex
+- files changed: `AGENTS.md`, `root_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Clarify commit timing so the agent suggests a commit only when a vertical slice is fully documented and verified.
+- linked run_ids: none
+- actual result: Root instructions now tell the agent to recognize a clean verified vertical slice as a good commit point and ask the user whether they want to commit, while avoiding premature commit prompts during partial work.
+
+- owner: Codex
 - files changed: `artifacts/manual-verification/`, `scripts/run_pytest_isolation.bat`, `experiments/change-log.md`, `final-grand-plan.md`
 - intent: Update manual verification artifacts to reflect the new project root and improve the robustness of the verification script.
 - linked run_ids: none

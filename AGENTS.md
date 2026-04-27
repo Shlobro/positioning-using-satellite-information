@@ -6,12 +6,14 @@
 - each non-root folder should only have 1 developer guide markdown file, except the repository root which may contain multiple markdown files. operational markdown files such as changelogs, experiment records, and other required project artifacts are allowed in addition to the single guide file. never create summary-only or visualization-only markdown files.
 - keep system temp directories (for example `%TEMP%/`) ignored via `.gitignore`.
 - always ask whether a commit message is good before committing.
+- when a vertical slice is complete, the relevant documentation is updated, and the required verification evidence is available, say that it is a good time to commit and ask the user whether they want to commit.
+- do not suggest committing during partial exploration or before the required verification evidence exists.
 - `.md` files are ignored when counting files in a folder. keep each folder at 10 code files or fewer where practical, and create a new folder before feature growth makes a folder hard to scan.
 - always verify code changes through this repository's approved verification workflow.
-- never run `pytest`, `python -m pytest`, or targeted pytest commands from an agent session in this repository. direct pytest execution repeatedly hangs under the agent wrapper and must be treated as forbidden, even for a single test file.
-- for this repository, always ask the user to run `scripts/run_pytest_isolation.bat` locally and paste the output back. do not treat agent-run verification as the default path for this repo.
-- if agent-run verification commands such as `python scripts/verify_repo.py` or `scripts/run_pytest_isolation.bat` get stuck in-session, stop retrying and ask the user to run them locally and paste the output.
-- avoid in-session `python ...` verification runs once the wrapper shows sticky behavior; prefer asking the user to run the equivalent local command and paste the output.
+- do not use direct `pytest`, `python -m pytest`, or targeted pytest commands as the default verification path in agent sessions for this repository. the wrapper has repeatedly hung on them, so the authoritative verification route remains the user-run `scripts/run_pytest_isolation.bat` workflow.
+- for this repository, always ask the user to run `scripts/run_pytest_isolation.bat` locally and paste the output back for verification evidence unless the user explicitly wants an additional agent-run check.
+- if a non-pytest `python ...` command is important to the task and the agent shell cannot access the local interpreter or hits sandbox/path issues, request escalation so the command can run against the user's actual Python environment.
+- if an agent-run Python command such as `python scripts/verify_repo.py` or another repository script gets stuck even after escalation, stop retrying and ask the user to run the equivalent local command and paste the output.
 - never worry about backward compatibility or legacy functionality. always assume everyone has up to date files.
 - never assume, if something is ambiguous then ask!
 - always repeat to me what i ask and ask clarifying questions to make sure we are on the same page before doing any changes.

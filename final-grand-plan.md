@@ -859,6 +859,30 @@ The project is only done when all of the following are true:
 
 ### 2026-04-27
 
+- What was done: Tightened the simple image baseline again by adding a coarse-to-fine search pass, blending grayscale with edge evidence in the candidate score, and rejecting near-tie repeated-pattern matches through an explicit margin gate.
+- What we learned: The previous image baseline was still losing accuracy to coarse search quantization and could look overconfident on visually repeated structures. Those are matcher-quality problems, not prior-policy problems, so they belong inside the measurement update itself.
+- How the plan changed: The next evaluation pass on the real session should measure whether this matcher-focused refinement lowers the remaining `recursive_image_baseline_matcher` error materially. If it does not, the next slice should switch from this raster template baseline to a stronger classical matcher in the same recursive interface instead of spending more time on prior-control tuning.
+
+### 2026-04-27
+
+- What was done: Fixed the new image-baseline ambiguity gate after the first local verification run showed the synthetic sequence fixture was being rejected as ambiguous.
+- What we learned: A coarse-to-fine matcher produces many neighboring high-score pixels around the same optimum, so a naive runner-up margin can mistake one broad local peak for two competing hypotheses. Ambiguity checks must reason about spatially distinct alternatives, not just score ordering.
+- How the plan changed: Verification should now pass again on the centered synthetic fixture while still rejecting repeated structures that produce separated candidate peaks. If the next real replay still shows weak image-baseline accuracy, the next slice should shift to a stronger classical matcher rather than further gate tuning.
+
+### 2026-04-27
+
+- What was done: Removed the machine-specific absolute image dependency from the first real-session calibration path by switching the committed sidecar to a relative PNG reference and teaching the georeference loader to fall back from stale absolute paths to a sibling image.
+- What we learned: Session assets are part of the runnable experiment surface, not just passive data. A calibration sidecar that embeds one developer's absolute filesystem path breaks portability and can block evaluation even when the actual data is present in the repo tree.
+- How the plan changed: Calibration files should now be treated as portable artifacts whose image references are relative by default. Agent workflow also changed slightly: when a non-pytest Python command is important and the sandbox cannot reach the local interpreter, escalation is now the intended path before declaring the command unavailable.
+
+### 2026-04-27
+
+- What was done: Added an explicit root-level rule for when the agent should suggest committing work.
+- What we learned: Commit timing is part of the measurable workflow in this repo. The right moment to raise a commit is after the vertical slice is documented and the required verification evidence is in hand, not during partial exploration.
+- How the plan changed: The agent should now actively ask whether the user wants to commit once a slice is in a clean verified state, while still asking the user to judge the commit message before any commit is made.
+
+### 2026-04-27
+
 - What was done: Updated manual verification artifacts to reflect the new project root and improved the robustness of the verification script.
 - What we learned: Keeping artifacts up to date with the current environment ensures that verification remains measurable and reproducible across different machines or project locations.
 - How the plan changed: No phase ordering changed, but environmental hardening is now part of the recorded maintenance discipline.

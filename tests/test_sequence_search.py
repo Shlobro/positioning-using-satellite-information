@@ -156,6 +156,7 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
         assert artifacts.scenarios[4].frames[1].estimate_source == "matched_image_baseline"
         assert artifacts.scenarios[4].matched_frame_count == 2
         assert artifacts.scenarios[4].mean_match_score is not None
+        assert artifacts.scenarios[4].frames[1].runner_up_match_score is not None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
