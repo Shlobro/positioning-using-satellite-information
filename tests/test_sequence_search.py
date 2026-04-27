@@ -8,6 +8,7 @@ import tempfile
 from PIL import Image, ImageDraw
 
 from satellite_drone_localization.eval.sequence_search import (
+    SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
@@ -142,6 +143,7 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
             SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
             SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
             SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+            SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
         ]
         assert artifacts.scenarios[0].frame_count == 2
         assert artifacts.scenarios[0].frames[1].contains_target is True
@@ -157,6 +159,11 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
         assert artifacts.scenarios[4].matched_frame_count == 2
         assert artifacts.scenarios[4].mean_match_score is not None
         assert artifacts.scenarios[4].frames[1].runner_up_match_score is not None
+        assert artifacts.scenarios[5].frames[1].prior_source == "previous_estimate_recursive_classical"
+        assert artifacts.scenarios[5].frames[0].estimate_source == "fallback_classical_insufficient_features"
+        assert artifacts.scenarios[5].frames[1].estimate_source == "fallback_classical_insufficient_features"
+        assert artifacts.scenarios[5].matched_frame_count == 0
+        assert artifacts.scenarios[5].mean_match_score is None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -220,11 +227,13 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
 
         summary = json.loads((output_dir / "sequence_search_summary.json").read_text(encoding="utf-8"))
         assert exit_code == 0
-        assert len(summary["scenarios"]) == 5
+        assert len(summary["scenarios"]) == 6
         assert summary["measurement_update_radius_m"] == 5.0
         assert summary["scenarios"][3]["scenario_name"] == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER
         assert summary["scenarios"][4]["scenario_name"] == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER
+        assert summary["scenarios"][5]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
         assert summary["scenarios"][4]["mean_match_score"] is not None
+        assert summary["scenarios"][5]["mean_match_score"] is None
         assert (output_dir / "sequence_search_debug.svg").exists()
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
@@ -290,6 +299,7 @@ def test_write_sequence_search_artifacts_from_report() -> None:
         assert loaded["scenarios"][2]["scenario_name"] == SCENARIO_RECURSIVE_ORACLE_ESTIMATE
         assert loaded["scenarios"][3]["scenario_name"] == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER
         assert loaded["scenarios"][4]["scenario_name"] == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER
+        assert loaded["scenarios"][5]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
         assert "Sequence Search Debug" in svg_path.read_text(encoding="utf-8")
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)

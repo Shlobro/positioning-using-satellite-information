@@ -9,6 +9,7 @@ description = "Research scaffold for bounded local alignment between drone image
 readme = "final-grand-plan.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
+  "opencv-python>=4.11,<5.0",
   "Pillow>=11.0,<12.0",
 ]
 

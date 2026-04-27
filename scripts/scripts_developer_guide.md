@@ -22,6 +22,9 @@ Guidelines:
 - `sequence_search_replay.py` now also reports match-score diagnostics for the
   first real image-template baseline, so the recursive image path can be judged
   separately from placeholder and oracle scenarios.
+- `sequence_search_replay.py` now also reports the classical local-feature
+  matcher scenario so the real-session artifact can compare raster and
+  feature-based non-neural baselines side by side.
 - `live_receiver_stub.py` is the Phase 1 minimal live intake entry point for one `live_frame` packet.
 - Repository-facing Python scripts should bootstrap `src/` explicitly so `python scripts/<tool>.py` works on a fresh checkout without installing the package first.
 - `verify_repo.py` is the deterministic repository verification path when direct `pytest` execution is not trustworthy in the local shell wrapper.
@@ -37,4 +40,8 @@ Guidelines:
   placeholder matcher scenario with a centered synthetic map fixture.
 - The sequence-search verification slice now also checks the real
   image-baseline scenario with a centered synthetic raster fixture.
+- The sequence-search verification slice now also checks the classical
+  local-feature scenario with the same centered synthetic raster fixture.
+  In that tiny deterministic fixture the honest expected outcome is currently a
+  feature-insufficient fallback, not a successful classical match.
 - If in-session execution of `verify_repo.py` stalls, treat the user-run local output as authoritative instead of retrying repeatedly inside the agent wrapper.

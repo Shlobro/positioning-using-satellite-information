@@ -35,6 +35,10 @@ Current scope:
   second location and a near-duplicate pixel around the same local optimum, so
   verification fixtures do not reject good peaks just because the response
   surface is smooth.
+- `satellite_drone_localization/eval/` now also holds a classical
+  OpenCV-backed local-feature matcher baseline so recursive sequence updates
+  can be compared against a stronger non-neural measurement model before the
+  project moves to pretrained neural matchers.
 
 Guidelines:
 

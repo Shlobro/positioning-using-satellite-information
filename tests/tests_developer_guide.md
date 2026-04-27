@@ -31,6 +31,13 @@ Current scope:
 - matcher-image-baseline tests now also verify that local near-ties around one
   true peak are accepted, while genuinely separate repeated-pattern peaks are
   still rejected.
+- matcher-classical tests verify the OpenCV-backed local-feature matcher can
+  recover a synthetic crop center, reject low-texture inputs, and fall back
+  cleanly when the crop is off-map.
+- the sequence-search fixture currently expects the recursive classical
+  scenario to fail honestly with feature-insufficient fallbacks on its tiny
+  synthetic map, because that fixture is meant to verify bookkeeping and
+  fallback behavior rather than prove strong feature richness.
 
 Guidelines:
 

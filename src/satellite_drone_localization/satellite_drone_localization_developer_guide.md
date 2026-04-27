@@ -27,6 +27,9 @@ Current responsibilities:
 - support a simple grayscale image-template matcher in the `eval/` subpackage
   so recursive sequence updates can be driven by real pixel comparisons against
   the calibrated GIS image
+- support a classical local-feature matcher in the `eval/` subpackage so the
+  recursive loop can also be measured with AKAZE/ORB-style correspondences
+  before neural matchers are introduced
 
 Design notes:
 
@@ -70,3 +73,8 @@ Design notes:
   from the best location before declaring the match ambiguous. Nearby pixels on
   the same peak are treated as one local optimum rather than as evidence of a
   repeated-pattern failure.
+- The classical matcher is intentionally measured as a separate baseline rather
+  than replacing the raster matcher immediately. It uses a calibrated local
+  crop plus OpenCV feature correspondences so negative results still teach us
+  whether close-range frames are failing because of representation, geometry,
+  or simple lack of matchable structure.

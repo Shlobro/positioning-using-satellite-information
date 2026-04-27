@@ -43,6 +43,9 @@ Current verification rule:
 - The sequence-search slice now also includes a first simple real
   image-template baseline that uses Pillow for grayscale raster matching
   against the calibrated GIS image.
+- The sequence-search slice now also includes a classical local-feature
+  matcher scenario so the project can measure a stronger non-neural baseline
+  before moving to pretrained neural matchers.
 
 Guidelines:
 

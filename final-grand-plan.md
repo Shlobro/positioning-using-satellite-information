@@ -892,3 +892,15 @@ The project is only done when all of the following are true:
 - What was done: Updated manual verification artifacts to reflect the new project root and improved the robustness of the verification script.
 - What we learned: Keeping artifacts up to date with the current environment ensures that verification remains measurable and reproducible across different machines or project locations.
 - How the plan changed: No phase ordering changed, but environmental hardening is now part of the recorded maintenance discipline.
+
+### 2026-04-27
+
+- What was done: Added a separate `recursive_classical_matcher` scenario that uses an OpenCV AKAZE-first, ORB-fallback local-feature matcher inside the same bounded sequence-search crop, plus deterministic tests and verification coverage for that path.
+- What we learned: On `DEV-SESSION-20260427T112451Z`, the stronger classical baseline still failed to bootstrap the recursive loop. It matched `0/92` frames, stayed on-map for only `3/92`, and its failure breakdown was dominated by off-map crops after the seed prior stopped helping, with the only on-map bootstrap frames failing from insufficient features or insufficient matches. That means the current real session is not being limited only by the raster template matcher; the earliest usable crops themselves are weak for classical local features at this geometry and altitude regime.
+- How the plan changed: Phase 2 and Phase 3 ordering stays the same in principle, but the immediate next matcher step should stop assuming classical local features can rescue this session by themselves. The next vertical slice should either add an explicit frame-usability gate so hopeless close-range frames fail honestly, or move to the planned pretrained neural matcher benchmark inside the same recursive interface.
+
+### 2026-04-27
+
+- What was done: Fixed the new classical-matcher verification expectations after the required local harness showed the tiny synthetic sequence fixture does not reliably produce a successful feature match.
+- What we learned: The deterministic verifier fixture is too small and texture-poor to serve as proof that the classical matcher should accept updates. Its stable value is that it verifies scenario wiring and honest fallback bookkeeping. In that fixture, `fallback_classical_insufficient_features` on both frames is the correct invariant.
+- How the plan changed: No phase ordering changed, but verification discipline for matcher slices is clearer again: synthetic repo fixtures should assert stable bookkeeping and fallback behavior, while real-session usefulness must be judged from replay artifacts rather than overfit synthetic-success assertions.

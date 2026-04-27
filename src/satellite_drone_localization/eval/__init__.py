@@ -1,6 +1,7 @@
 """Offline evaluation helpers for sequence-localization experiments."""
 
 from .sequence_search import (
+    SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
     SequenceScenarioReport,
     SequenceSearchArtifacts,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
@@ -12,6 +13,7 @@ from .sequence_search import (
 )
 
 __all__ = [
+    "SCENARIO_RECURSIVE_CLASSICAL_MATCHER",
     "SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER",
     "SCENARIO_RECURSIVE_ORACLE_ESTIMATE",
     "SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER",

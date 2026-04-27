@@ -12,6 +12,7 @@ from ..crop import DEFAULT_CROP_PADDING_FACTOR, meters_offset_between
 from ..geometry import build_replay_geometry_report
 from ..map_georeference import MapGeoreference
 from ..packet_replay import ReplaySession
+from .matcher_classical import ClassicalFeatureMatcher
 from .matcher_image_baseline import ImageBaselineMatcher
 from .matcher_placeholder import build_truth_anchored_placeholder_match
 
@@ -21,12 +22,14 @@ SCENARIO_ORACLE_PREVIOUS_TRUTH = "oracle_previous_truth"
 SCENARIO_RECURSIVE_ORACLE_ESTIMATE = "recursive_oracle_estimate"
 SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER = "recursive_placeholder_matcher"
 SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER = "recursive_image_baseline_matcher"
+SCENARIO_RECURSIVE_CLASSICAL_MATCHER = "recursive_classical_matcher"
 SCENARIO_NAMES = (
     SCENARIO_SEED_ONLY,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+    SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
 )
 EARTH_RADIUS_M = 6_378_137.0
 
@@ -196,6 +199,18 @@ def build_sequence_search_artifacts(
             measurement_update_radius_m=measurement_update_radius_m,
             image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
         ),
+        build_sequence_scenario_report(
+            scenario_name=SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
+            session=session,
+            georeference=georeference,
+            timestamps=timestamps,
+            first_timestamp=first_timestamp,
+            geometry_report=geometry_report.frames,
+            max_speed_mps=max_speed_mps,
+            base_search_radius_m=base_search_radius_m,
+            measurement_update_radius_m=measurement_update_radius_m,
+            classical_feature_matcher=ClassicalFeatureMatcher(georeference.image_path),
+        ),
     ]
 
     return SequenceSearchArtifacts(
@@ -226,6 +241,7 @@ def build_sequence_scenario_report(
     base_search_radius_m: float,
     measurement_update_radius_m: float,
     image_baseline_matcher: ImageBaselineMatcher | None = None,
+    classical_feature_matcher: ClassicalFeatureMatcher | None = None,
 ) -> SequenceScenarioReport:
     """Evaluate one sequence-prior scenario."""
     if scenario_name not in SCENARIO_NAMES:
@@ -268,8 +284,10 @@ def build_sequence_scenario_report(
                 prior_source = "previous_estimate_recursive_oracle"
             elif scenario_name == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER:
                 prior_source = "previous_estimate_recursive_placeholder"
-            else:
+            elif scenario_name == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER:
                 prior_source = "previous_estimate_recursive_image_baseline"
+            else:
+                prior_source = "previous_estimate_recursive_classical"
             prior_search_radius_m = estimated_confidence_radius_m + (max_speed_mps * delta_seconds)
         crop_side_m = max(geometry.normalized_crop_size_m, prior_search_radius_m * 2.0 * DEFAULT_CROP_PADDING_FACTOR)
         half_side_m = crop_side_m / 2.0
@@ -322,6 +340,7 @@ def build_sequence_scenario_report(
             georeference=georeference,
             measurement_update_radius_m=measurement_update_radius_m,
             image_baseline_matcher=image_baseline_matcher,
+            classical_feature_matcher=classical_feature_matcher,
             crop_min_x=crop_min_x,
             crop_min_y=crop_min_y,
             crop_max_x=crop_max_x,
@@ -384,6 +403,7 @@ def build_sequence_scenario_report(
             SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
             SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
             SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+            SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
         ):
             estimated_latitude_deg = estimate_latitude_deg
             estimated_longitude_deg = estimate_longitude_deg
@@ -438,6 +458,7 @@ def build_estimate_update(
     georeference: MapGeoreference,
     measurement_update_radius_m: float,
     image_baseline_matcher: ImageBaselineMatcher | None,
+    classical_feature_matcher: ClassicalFeatureMatcher | None,
     crop_min_x: float,
     crop_min_y: float,
     crop_max_x: float,
@@ -506,26 +527,42 @@ def build_estimate_update(
             None,
         )
 
-    if image_baseline_matcher is None:
-        raise ValueError("image_baseline_matcher is required for recursive image baseline scenario")
-
     crop_width_px = max(1.0, crop_max_x - crop_min_x)
     crop_height_px = max(1.0, crop_max_y - crop_min_y)
     ground_width_px = geometry.ground_width_m * (crop_width_px / crop_side_m)
     ground_height_px = geometry.ground_height_m * (crop_height_px / crop_side_m)
-    decision = image_baseline_matcher.match_frame(
-        frame_image_path=frame.image_path,
-        normalization_rotation_deg=geometry.normalization_rotation_deg,
-        ground_width_px=ground_width_px,
-        ground_height_px=ground_height_px,
-        crop_min_x=crop_min_x,
-        crop_min_y=crop_min_y,
-        crop_max_x=crop_max_x,
-        crop_max_y=crop_max_y,
-        crop_inside_image=crop_inside_image,
-        measurement_update_radius_m=measurement_update_radius_m,
-        georeference_max_residual_m=georeference.max_residual_m,
-    )
+    if scenario_name == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER:
+        if image_baseline_matcher is None:
+            raise ValueError("image_baseline_matcher is required for recursive image baseline scenario")
+        decision = image_baseline_matcher.match_frame(
+            frame_image_path=frame.image_path,
+            normalization_rotation_deg=geometry.normalization_rotation_deg,
+            ground_width_px=ground_width_px,
+            ground_height_px=ground_height_px,
+            crop_min_x=crop_min_x,
+            crop_min_y=crop_min_y,
+            crop_max_x=crop_max_x,
+            crop_max_y=crop_max_y,
+            crop_inside_image=crop_inside_image,
+            measurement_update_radius_m=measurement_update_radius_m,
+            georeference_max_residual_m=georeference.max_residual_m,
+        )
+    else:
+        if classical_feature_matcher is None:
+            raise ValueError("classical_feature_matcher is required for recursive classical scenario")
+        decision = classical_feature_matcher.match_frame(
+            frame_image_path=frame.image_path,
+            normalization_rotation_deg=geometry.normalization_rotation_deg,
+            ground_width_px=ground_width_px,
+            ground_height_px=ground_height_px,
+            crop_min_x=crop_min_x,
+            crop_min_y=crop_min_y,
+            crop_max_x=crop_max_x,
+            crop_max_y=crop_max_y,
+            crop_inside_image=crop_inside_image,
+            measurement_update_radius_m=measurement_update_radius_m,
+            georeference_max_residual_m=georeference.max_residual_m,
+        )
     if decision.accepted:
         estimated_latitude_deg, estimated_longitude_deg = georeference.pixel_to_latlon(
             decision.estimated_pixel_x,
@@ -637,6 +674,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
         SCENARIO_RECURSIVE_ORACLE_ESTIMATE: ("#2b9348", "#b7e4c7"),
         SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER: ("#6a4c93", "#d4b8f2"),
         SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER: ("#8a5a44", "#f4d6c2"),
+        SCENARIO_RECURSIVE_CLASSICAL_MATCHER: ("#1d3557", "#a8dadc"),
     }
     overlay_parts: list[str] = []
     for scenario in artifacts.scenarios:
@@ -695,6 +733,11 @@ def describe_scenario(scenario_name: str) -> str:
             "Stateful prior loop that feeds back a simple real image-template baseline "
             "measured inside the calibrated satellite crop, so recursive tracking can be compared against placeholder and oracle scenarios."
         )
+    if scenario_name == SCENARIO_RECURSIVE_CLASSICAL_MATCHER:
+        return (
+            "Stateful prior loop that feeds back a classical local-feature matcher "
+            "inside the calibrated satellite crop, so a stronger non-neural baseline can be compared against the raster baseline and oracle ceilings."
+        )
     raise ValueError(f"unsupported scenario_name '{scenario_name}'")
 
 
@@ -731,6 +774,7 @@ def is_match_source(source: str) -> bool:
         "oracle_current_truth_update",
         "matched_placeholder_truth_anchored",
         "matched_image_baseline",
+        "matched_classical_feature",
     }
 
 

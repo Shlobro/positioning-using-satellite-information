@@ -12,12 +12,15 @@ Current scope:
 - `matcher_image_baseline.py` holds the first simple real image-template
   baseline used to compare recursive tracking against placeholder and oracle
   scenarios.
+- `matcher_classical.py` holds the stronger classical local-feature baseline
+  used to compare recursive tracking against the raster matcher before moving
+  to neural approaches.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
-- The sequence evaluator now reports four explicit policies:
-  `seed_only`, `oracle_previous_truth`,
-  `recursive_oracle_estimate`, `recursive_placeholder_matcher`, and
-  `recursive_image_baseline_matcher`.
+- The sequence evaluator now reports six explicit policies:
+  `seed_only`, `oracle_previous_truth`, `recursive_oracle_estimate`,
+  `recursive_placeholder_matcher`, `recursive_image_baseline_matcher`, and
+  `recursive_classical_matcher`.
 - `recursive_oracle_estimate` is the first explicit stateful prior loop in the
   repo. It carries a previous accepted estimate forward and expands the next
   search radius from a configurable post-update confidence radius plus motion
@@ -42,6 +45,11 @@ Current scope:
 - The winner-over-runner-up ambiguity check now ignores neighboring pixels that
   belong to the same local peak. Only a materially separated second location is
   treated as a true ambiguous alternative.
+- The sequence evaluator now also reports `recursive_classical_matcher`, which
+  uses AKAZE first and ORB-with-forced-corners as a fallback inside the same
+  bounded crop. This scenario is useful even when it fails, because the
+  estimate-source breakdown shows whether the classical path is failing from
+  off-map priors, low feature count, or weak geometric support.
 
 Guidelines:
 
