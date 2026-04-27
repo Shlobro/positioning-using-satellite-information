@@ -856,3 +856,9 @@ The project is only done when all of the following are true:
 - What was done: Improved the simple image baseline with low-texture rejection and a prior-centered ranking bias for close visual matches.
 - What we learned: On `DEV-SESSION-20260427T112451Z`, the image-baseline recursive scenario improved from `map=13/92` and `err_mean=44.93m` to `map=92/92` and `err_mean=17.34m`. The center bias made the tracker much less destructive to map persistence, but the remaining error is still far above the placeholder and oracle paths.
 - How the plan changed: The crop-local image baseline is now useful as a diagnostic comparison, but the next matcher work should focus on better image representation or a stronger classical baseline rather than more prior-policy changes.
+
+### 2026-04-27
+
+- What was done: Updated manual verification artifacts to reflect the new project root and improved the robustness of the verification script.
+- What we learned: Keeping artifacts up to date with the current environment ensures that verification remains measurable and reproducible across different machines or project locations.
+- How the plan changed: No phase ordering changed, but environmental hardening is now part of the recorded maintenance discipline.

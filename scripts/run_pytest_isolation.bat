@@ -9,7 +9,7 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 set "TEMP_PY=%LOG_DIR%\import_check.py"
 set "TEMP_PY_REL=artifacts\manual-verification\import_check.py"
 
-set "PYTHON_LAUNCHER=py -3.12"
+set "PYTHON_LAUNCHER=py"
 set "STEP_TIMEOUT_SECONDS=20"
 
 echo Repo root: %REPO_ROOT%
@@ -50,11 +50,12 @@ echo.
 if not "%EXIT_CODE%"=="0" goto :fail
 
 echo ==== repo_verification ====
-pwsh -NoLogo -NoProfile -Command ^
+where pwsh >nul 2>&1 && set "PS_EXE=pwsh" || set "PS_EXE=powershell"
+%PS_EXE% -NoLogo -NoProfile -Command ^
   "$logFile = '%LOG_DIR%\repo_verification.log';" ^
   "$stdoutPath = [System.IO.Path]::GetTempFileName();" ^
   "$stderrPath = [System.IO.Path]::GetTempFileName();" ^
-  "$process = Start-Process -FilePath 'py' -ArgumentList @('-3.12', 'scripts\verify_repo.py') -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru;" ^
+  "$process = Start-Process -FilePath 'py' -ArgumentList @('scripts\verify_repo.py') -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru;" ^
   "try {" ^
   "  if ($process.WaitForExit(%STEP_TIMEOUT_SECONDS% * 1000)) {" ^
   "    $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath -Raw } else { '' };" ^

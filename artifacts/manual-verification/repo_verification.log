@@ -1,25 +1,25 @@
-Loaded 2 frame packets from C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\configs\replay\dev_packets_v1.jsonl
+Loaded 2 frame packets from D:\PycharmProjects\satellite\positioning-using-satellite-information\configs\replay\dev_packets_v1.jsonl
 Schema: dev-packet-v1
 Session: DEV-SESSION-001
 Default altitude reference: agl
 First frame: 2026-04-20T10:15:30Z frame_0001.jpg
-First image path: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\configs\replay\frames\frame_0001.jpg
+First image path: D:\PycharmProjects\satellite\positioning-using-satellite-information\configs\replay\frames\frame_0001.jpg
 First frame hfov: 84.00 deg
 Frames: 2
 Average altitude: 52.30 m
 Width range: 90.75 m .. 94.36 m
 Height range: 68.07 m .. 70.77 m
-Summary: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\artifacts\manual-verification\geometry-report\geometry_summary.json
-Debug SVG: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\artifacts\manual-verification\geometry-report\geometry_debug.svg
+Summary: D:\PycharmProjects\satellite\positioning-using-satellite-information\artifacts\manual-verification\geometry-report\geometry_summary.json
+Debug SVG: D:\PycharmProjects\satellite\positioning-using-satellite-information\artifacts\manual-verification\geometry-report\geometry_debug.svg
 Frames: 2
 Average crop side: 92.56 m
 Max target offset: 4.38 m
-Summary: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\artifacts\manual-verification\crop-plan\crop_summary.json
-Debug SVG: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\artifacts\manual-verification\crop-plan\crop_debug.svg
+Summary: D:\PycharmProjects\satellite\positioning-using-satellite-information\artifacts\manual-verification\crop-plan\crop_summary.json
+Debug SVG: D:\PycharmProjects\satellite\positioning-using-satellite-information\artifacts\manual-verification\crop-plan\crop_debug.svg
 Frames: 2
 Average altitude: 52.30 m
 Average crop side: 92.56 m
 Sensitivity cases: 6
-Summary: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\artifacts\manual-verification\replay-pipeline\pipeline_summary.json
-Debug SVG: C:\Users\shlob\Pycharm Projects\Satellite-drone-localization\artifacts\manual-verification\replay-pipeline\pipeline_debug.svg
+Summary: D:\PycharmProjects\satellite\positioning-using-satellite-information\artifacts\manual-verification\replay-pipeline\pipeline_summary.json
+Debug SVG: D:\PycharmProjects\satellite\positioning-using-satellite-information\artifacts\manual-verification\replay-pipeline\pipeline_debug.svg
 verification_ok

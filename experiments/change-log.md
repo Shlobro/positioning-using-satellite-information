@@ -185,3 +185,9 @@
 - intent: Improve the first real image baseline so ambiguous visual evidence is less likely to poison the recursive prior.
 - linked run_ids: none
 - actual result: The image baseline now rejects low-texture templates and ranks candidate matches with a small prior-center penalty when visual scores are close. On `DEV-SESSION-20260427T112451Z`, the `recursive_image_baseline_matcher` scenario improved from `map=13/92`, `err_mean=44.93m`, and `max_offset=62.82m` to `map=92/92`, `err_mean=17.34m`, and `max_offset=56.61m`. The result is materially better but still not strong enough to replace the placeholder or oracle ceilings.
+
+- owner: Codex
+- files changed: `artifacts/manual-verification/`, `scripts/run_pytest_isolation.bat`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Update manual verification artifacts to reflect the new project root and improve the robustness of the verification script.
+- linked run_ids: none
+- actual result: Artifact paths were updated to the current project directory, and `run_pytest_isolation.bat` was updated to use a more generic Python launcher and properly detect PowerShell environments.

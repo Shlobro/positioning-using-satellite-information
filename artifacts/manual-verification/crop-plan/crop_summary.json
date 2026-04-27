@@ -1,6 +1,6 @@
 {
   "session_id": "DEV-SESSION-001",
-  "source_path": "C:\\Users\\shlob\\Pycharm Projects\\Satellite-drone-localization\\configs\\replay\\dev_packets_v1.jsonl",
+  "source_path": "D:\\PycharmProjects\\satellite\\positioning-using-satellite-information\\configs\\replay\\dev_packets_v1.jsonl",
   "frame_count": 2,
   "average_crop_side_m": 92.55793963521384,
   "max_target_offset_m": 4.377080811799742,
