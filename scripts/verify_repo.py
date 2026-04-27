@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
+from PIL import Image, ImageDraw
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
@@ -156,6 +157,12 @@ def verify_sequence_search() -> None:
     try:
         replay_path = repo_root / "capture.jsonl"
         calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        frame_0001 = repo_root / "frame_0001.png"
+        frame_0002 = repo_root / "frame_0002.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0001, center_x=100, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0002, center_x=112, center_y=100)
         replay_path.write_text(
             "\n".join(
                 [
@@ -170,26 +177,26 @@ def verify_sequence_search() -> None:
                         {
                             "packet_type": "frame",
                             "timestamp_utc": "2026-04-20T10:15:30Z",
-                            "image_name": "frame_0001.jpg",
+                            "image_name": "frame_0001.png",
                             "latitude_deg": 30.9990,
                             "longitude_deg": 35.0010,
-                            "altitude_m": 20.0,
+                            "altitude_m": 16.66,
                             "heading_deg": 0.0,
-                            "frame_width_px": 4000,
-                            "frame_height_px": 3000,
+                            "frame_width_px": 192,
+                            "frame_height_px": 108,
                         }
                     ),
                     json.dumps(
                         {
                             "packet_type": "frame",
                             "timestamp_utc": "2026-04-20T10:15:31Z",
-                            "image_name": "frame_0002.jpg",
+                            "image_name": "frame_0002.png",
                             "latitude_deg": 30.9990,
-                            "longitude_deg": 35.0012,
-                            "altitude_m": 20.0,
+                            "longitude_deg": 35.00112,
+                            "altitude_m": 16.66,
                             "heading_deg": 0.0,
-                            "frame_width_px": 4000,
-                            "frame_height_px": 3000,
+                            "frame_width_px": 192,
+                            "frame_height_px": 108,
                         }
                     ),
                 ]
@@ -200,7 +207,7 @@ def verify_sequence_search() -> None:
         calibration_path.write_text(
             json.dumps(
                 {
-                    "image": str(repo_root / "map.png"),
+                    "image": str(map_path),
                     "image_size_px": [200, 200],
                     "calibration_points": [
                         {"pixel": [0, 0], "gps": {"lat": 31.0000, "lng": 35.0000}},
@@ -219,21 +226,60 @@ def verify_sequence_search() -> None:
             max_speed_mps=25.0,
             measurement_update_radius_m=5.0,
         )
-        assert len(artifacts.scenarios) == 4
+        assert len(artifacts.scenarios) == 5
         assert artifacts.scenarios[0].contained_frame_count == 2
         assert artifacts.scenarios[1].contained_frame_count == 2
         assert artifacts.scenarios[2].contained_frame_count == 2
         assert artifacts.scenarios[3].contained_frame_count == 2
+        assert artifacts.scenarios[4].contained_frame_count == 2
         assert artifacts.scenarios[1].frames[1].prior_source == "previous_frame_truth_oracle"
         assert artifacts.scenarios[1].frames[1].target_distance_m > 0.0
         assert artifacts.scenarios[2].frames[1].prior_source == "previous_estimate_recursive_oracle"
-        assert artifacts.scenarios[2].frames[1].prior_search_radius_m == 30.0
+        assert round(artifacts.scenarios[2].frames[1].prior_search_radius_m, 2) == 30.0
         assert artifacts.scenarios[3].frames[1].prior_source == "previous_estimate_recursive_placeholder"
         assert artifacts.scenarios[3].frames[1].estimate_source == "matched_placeholder_truth_anchored"
         assert artifacts.scenarios[3].matched_frame_count == 2
         assert artifacts.scenarios[3].max_estimate_error_m > 0.0
+        assert artifacts.scenarios[4].frames[1].prior_source == "previous_estimate_recursive_image_baseline"
+        assert artifacts.scenarios[4].frames[1].estimate_source == "matched_image_baseline"
+        assert artifacts.scenarios[4].matched_frame_count == 2
+        assert artifacts.scenarios[4].mean_match_score is not None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def write_synthetic_map_image(path: Path) -> None:
+    image = Image.new("L", (200, 200), color=96)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((18, 20, 84, 74), fill=186)
+    draw.rectangle((110, 22, 174, 88), fill=224)
+    draw.rectangle((26, 104, 84, 176), fill=148)
+    draw.rectangle((116, 114, 182, 176), fill=204)
+    draw.line((98, 0, 98, 200), fill=28, width=6)
+    draw.line((0, 150, 200, 150), fill=36, width=8)
+    image.save(path)
+
+
+def write_frame_from_map(
+    *,
+    map_path: Path,
+    frame_path: Path,
+    center_x: int,
+    center_y: int,
+    width_px: int = 60,
+    height_px: int = 34,
+) -> None:
+    with Image.open(map_path) as image:
+        patch = image.crop(
+            (
+                center_x - (width_px // 2),
+                center_y - (height_px // 2),
+                center_x + (width_px // 2),
+                center_y + (height_px // 2),
+            )
+        )
+        frame = patch.resize((192, 108), resample=Image.Resampling.BILINEAR)
+        frame.save(frame_path)
 
 
 def verify_map_calibrator() -> None:

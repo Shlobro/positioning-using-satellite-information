@@ -18,6 +18,9 @@ Current scope:
 - matcher-placeholder tests verify the deterministic stand-in measurement model
   accepts centered on-map targets and falls back cleanly when the crop leaves
   the calibrated image.
+- matcher-image-baseline tests verify the first simple real pixel matcher can
+  recover a synthetic crop center from a synthetic GIS image and fall back when
+  the search crop leaves the image.
 
 Guidelines:
 

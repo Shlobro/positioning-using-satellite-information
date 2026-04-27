@@ -33,6 +33,9 @@ Current verification rule:
 - The sequence-search slice now also includes a deterministic placeholder
   matcher scenario, so recursive tracking drift can be measured before any
   heavy image-matching dependency is introduced.
+- The sequence-search slice now also includes a first simple real
+  image-template baseline that uses Pillow for grayscale raster matching
+  against the calibrated GIS image.
 
 Guidelines:
 

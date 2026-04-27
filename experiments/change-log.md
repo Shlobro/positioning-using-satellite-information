@@ -167,3 +167,9 @@
 - intent: Add the first deterministic matcher placeholder so the recursive prior loop can be measured with non-zero localization error and fallback behavior before a real image matcher is integrated.
 - linked run_ids: none
 - actual result: The sequence evaluator now reports a fourth scenario, `recursive_placeholder_matcher`, which feeds back a truth-anchored deterministic placeholder measurement instead of a perfect oracle update. Summary artifacts now report match counts plus estimate-error metrics, and deterministic tests plus repo verification cover the new scenario.
+
+- owner: Codex
+- files changed: `pyproject.toml`, `src/satellite_drone_localization/eval/matcher_image_baseline.py`, `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/sequence_search_cli.py`, `src/satellite_drone_localization/eval/__init__.py`, `scripts/verify_repo.py`, `tests/test_sequence_search.py`, `tests/test_matcher_image_baseline.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add the first simple real image-matching baseline so the recursive sequence loop can be measured with actual pixel evidence inside the calibrated GIS crop.
+- linked run_ids: none
+- actual result: The sequence evaluator now reports a fifth scenario, `recursive_image_baseline_matcher`, which rotates each frame north-up, projects it to the expected footprint size, and runs a grayscale edge-template search inside the calibrated GIS crop. Summary artifacts now include match-score diagnostics, and deterministic synthetic-image tests plus repo verification cover the new scenario. On the 2026-04-27 real session, this first image baseline stayed on-map for 13 of 92 frames, matched 13 frames, and reached `44.93 m` mean estimate error, which is good enough to prove the interface but not good enough to replace the placeholder as the working tracker baseline.

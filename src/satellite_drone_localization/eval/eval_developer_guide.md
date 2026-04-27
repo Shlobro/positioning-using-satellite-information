@@ -9,11 +9,15 @@ Current scope:
   GPS truth and a calibrated GIS reference image.
 - `matcher_placeholder.py` holds the deterministic stand-in measurement model
   used before a real image matcher exists.
+- `matcher_image_baseline.py` holds the first simple real image-template
+  baseline used to compare recursive tracking against placeholder and oracle
+  scenarios.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
 - The sequence evaluator now reports four explicit policies:
-  `seed_only`, `oracle_previous_truth`, and
-  `recursive_oracle_estimate`, plus `recursive_placeholder_matcher`.
+  `seed_only`, `oracle_previous_truth`,
+  `recursive_oracle_estimate`, `recursive_placeholder_matcher`, and
+  `recursive_image_baseline_matcher`.
 - `recursive_oracle_estimate` is the first explicit stateful prior loop in the
   repo. It carries a previous accepted estimate forward and expands the next
   search radius from a configurable post-update confidence radius plus motion
@@ -22,6 +26,10 @@ Current scope:
   replaces the perfect oracle update with a deterministic truth-anchored
   placeholder measurement so non-zero estimation error and fallback behavior
   can be measured.
+- `recursive_image_baseline_matcher` keeps the same recursive control loop but
+  replaces the placeholder update with a simple grayscale template match inside
+  the calibrated GIS crop, so real pixel evidence can be compared against the
+  oracle and placeholder ceilings.
 
 Guidelines:
 
@@ -36,3 +44,6 @@ Guidelines:
 - When a placeholder is used in place of a real matcher, label it honestly in
   scenario names and estimate-source fields so artifacts do not imply image
   evidence that the code did not actually use.
+- Keep image baselines explicit about their simplicity. Record match-score
+  diagnostics so weak image evidence is visible instead of silently treated as
+  oracle-quality localization.

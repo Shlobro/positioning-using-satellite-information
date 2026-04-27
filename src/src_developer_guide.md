@@ -18,6 +18,9 @@ Current scope:
 - `satellite_drone_localization/eval/` now also holds a deterministic
   placeholder matcher module so recursive sequence updates can be scored with
   non-zero localization error before a real perception stack lands.
+- `satellite_drone_localization/eval/` now also holds a simple Pillow-backed
+  image matcher baseline so the recursive loop can be measured with real pixel
+  evidence before heavier matchers are introduced.
 
 Guidelines:
 

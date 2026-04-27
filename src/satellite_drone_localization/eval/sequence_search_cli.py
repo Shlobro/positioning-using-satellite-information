@@ -84,11 +84,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Image size: {artifacts.image_width_px} x {artifacts.image_height_px}")
     print(f"Georeference max residual: {artifacts.georeference_max_residual_m:.2f} m")
     for scenario in artifacts.scenarios:
+        score_text = (
+            f" score_mean={scenario.mean_match_score:.2f}"
+            if scenario.mean_match_score is not None
+            else ""
+        )
         print(
             f"{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} "
             f"map={scenario.crop_inside_image_count}/{scenario.frame_count} "
             f"matches={scenario.matched_frame_count} "
-            f"err_mean={scenario.mean_estimate_error_m:.2f}m "
+            f"err_mean={scenario.mean_estimate_error_m:.2f}m"
+            f"{score_text} "
             f"max_offset={scenario.max_target_offset_m:.2f}m"
         )
     print(f"Summary: {summary_path}")

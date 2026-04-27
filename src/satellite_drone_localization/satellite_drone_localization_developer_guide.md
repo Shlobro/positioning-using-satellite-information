@@ -24,6 +24,9 @@ Current responsibilities:
 - support a deterministic truth-anchored placeholder matcher in the `eval/`
   subpackage so recursive sequence updates can accumulate measurable estimation
   error before a real image matcher is integrated
+- support a simple grayscale image-template matcher in the `eval/` subpackage
+  so recursive sequence updates can be driven by real pixel comparisons against
+  the calibrated GIS image
 
 Design notes:
 
@@ -47,3 +50,7 @@ Design notes:
   crop geometry plus calibrated-map residuals to synthesize bounded update
   error and fallback cases, which is useful for measuring control-loop behavior
   without introducing external image-processing dependencies yet.
+- The first real image baseline intentionally stays simple: Pillow-backed
+  grayscale edge images, north-up frame rotation, projected footprint sizing,
+  and exhaustive crop-local template search. It is a sanity-check baseline, not
+  the intended production matcher.
