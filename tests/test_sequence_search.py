@@ -10,16 +10,20 @@ from PIL import Image, ImageDraw
 from satellite_drone_localization.eval.sequence_search import (
     SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+    SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MATCHER,
+    SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_SEED_ONLY,
     build_sequence_search_artifacts,
+    build_crop_pixel_bounds,
     write_sequence_search_debug_svg,
     write_sequence_search_summary,
 )
 from satellite_drone_localization.eval.matcher_roma import RoMaRegressionMatcher
+from satellite_drone_localization.eval.sequence_policy import constrain_prior_to_image, estimate_map_limited_square_side_m
 
 
 class FakeRoMaBackend:
@@ -179,6 +183,7 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
             SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
             SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
             SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+            SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
             SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
         ]
         assert artifacts.scenarios[0].frame_count == 2
@@ -195,11 +200,15 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
         assert artifacts.scenarios[4].matched_frame_count == 2
         assert artifacts.scenarios[4].mean_match_score is not None
         assert artifacts.scenarios[4].frames[1].runner_up_match_score is not None
-        assert artifacts.scenarios[5].frames[1].prior_source == "previous_estimate_recursive_classical"
-        assert artifacts.scenarios[5].frames[0].estimate_source == "fallback_classical_insufficient_features"
-        assert artifacts.scenarios[5].frames[1].estimate_source == "fallback_classical_insufficient_features"
-        assert artifacts.scenarios[5].matched_frame_count == 0
-        assert artifacts.scenarios[5].mean_match_score is None
+        assert artifacts.scenarios[5].frames[1].prior_source == "previous_estimate_recursive_image_map_constrained"
+        assert artifacts.scenarios[5].matched_frame_count == 2
+        assert artifacts.scenarios[5].map_constrained_frame_count == 0
+        assert artifacts.scenarios[5].map_limited_frame_count == 0
+        assert artifacts.scenarios[6].frames[1].prior_source == "previous_estimate_recursive_classical"
+        assert artifacts.scenarios[6].frames[0].estimate_source == "fallback_classical_insufficient_features"
+        assert artifacts.scenarios[6].frames[1].estimate_source == "fallback_classical_insufficient_features"
+        assert artifacts.scenarios[6].matched_frame_count == 0
+        assert artifacts.scenarios[6].mean_match_score is None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -264,11 +273,118 @@ def test_build_sequence_search_artifacts_adds_optional_roma_scenario() -> None:
         )
 
         assert artifacts.neural_matcher_name == "roma_outdoor"
-        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER
-        assert artifacts.scenarios[-1].frames[1].prior_source == "previous_estimate_recursive_roma"
+        assert artifacts.scenarios[-2].scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER
+        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
+        assert artifacts.scenarios[-2].frames[1].prior_source == "previous_estimate_recursive_roma"
+        assert artifacts.scenarios[-2].frames[1].estimate_source == "matched_roma"
+        assert artifacts.scenarios[-2].matched_frame_count == 2
+        assert artifacts.scenarios[-2].mean_match_score is not None
+        assert artifacts.scenarios[-1].frames[1].prior_source == "previous_estimate_recursive_roma_map_constrained"
         assert artifacts.scenarios[-1].frames[1].estimate_source == "matched_roma"
         assert artifacts.scenarios[-1].matched_frame_count == 2
-        assert artifacts.scenarios[-1].mean_match_score is not None
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_map_constrained_roma_scenario_rejects_updates_outside_motion_gate() -> None:
+    repo_root = make_repo_root()
+    try:
+        replay_path = repo_root / "capture.jsonl"
+        calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        frame_0001 = repo_root / "frame_0001.png"
+        frame_0002 = repo_root / "frame_0002.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0001, center_x=100, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0002, center_x=112, center_y=100)
+        write_jsonl(
+            replay_path,
+            [
+                {"packet_type": "session_start", "schema_version": "dev-packet-v1", "camera_hfov_deg": 84.0},
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:30Z",
+                    "image_name": "frame_0001.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:31Z",
+                    "image_name": "frame_0002.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.00112,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+            ],
+        )
+        write_calibration(calibration_path, map_path)
+        roma_matcher = RoMaRegressionMatcher(
+            map_path,
+            backend=FakeRoMaBackend(center_x=180.0, center_y=100.0),
+            device="cpu",
+            model_name="roma_outdoor",
+        )
+
+        artifacts = build_sequence_search_artifacts(
+            load_replay_session(replay_path),
+            load_map_georeference(calibration_path),
+            max_speed_mps=25.0,
+            measurement_update_radius_m=5.0,
+            roma_matcher=roma_matcher,
+        )
+
+        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
+        assert artifacts.scenarios[-1].frames[0].estimate_source == "fallback_map_constrained_update_outside_motion_gate"
+        assert artifacts.scenarios[-1].matched_frame_count == 0
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_constrain_prior_to_image_moves_offmap_crop_center() -> None:
+    repo_root = make_repo_root()
+    try:
+        calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        write_synthetic_map_image(map_path)
+        write_calibration(calibration_path, map_path)
+        georeference = load_map_georeference(calibration_path)
+        latitude_deg, longitude_deg = georeference.pixel_to_latlon(8.0, 100.0)
+
+        constrained_latitude_deg, constrained_longitude_deg, was_constrained = constrain_prior_to_image(
+            georeference=georeference,
+            prior_latitude_deg=latitude_deg,
+            prior_longitude_deg=longitude_deg,
+            half_side_m=20.0,
+            build_crop_pixel_bounds=build_crop_pixel_bounds,
+        )
+
+        constrained_x, _ = georeference.latlon_to_pixel(constrained_latitude_deg, constrained_longitude_deg)
+        assert was_constrained is True
+        assert constrained_x > 8.0
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_estimate_map_limited_square_side_uses_shorter_map_extent() -> None:
+    repo_root = make_repo_root()
+    try:
+        calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        write_synthetic_map_image(map_path)
+        write_calibration(calibration_path, map_path)
+        georeference = load_map_georeference(calibration_path)
+
+        limited_side_m = estimate_map_limited_square_side_m(georeference)
+
+        assert 180.0 < limited_side_m < 200.0
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -332,14 +448,17 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
 
         summary = json.loads((output_dir / "sequence_search_summary.json").read_text(encoding="utf-8"))
         assert exit_code == 0
-        assert len(summary["scenarios"]) == 6
+        assert len(summary["scenarios"]) == 7
         assert summary["measurement_update_radius_m"] == 5.0
         assert summary["neural_matcher_name"] is None
         assert summary["scenarios"][3]["scenario_name"] == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER
         assert summary["scenarios"][4]["scenario_name"] == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER
-        assert summary["scenarios"][5]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
+        assert summary["scenarios"][5]["scenario_name"] == SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER
+        assert summary["scenarios"][6]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
+        assert "map_constrained_frame_count" in summary["scenarios"][5]
+        assert "map_limited_frame_count" in summary["scenarios"][5]
         assert summary["scenarios"][4]["mean_match_score"] is not None
-        assert summary["scenarios"][5]["mean_match_score"] is None
+        assert summary["scenarios"][6]["mean_match_score"] is None
         assert (output_dir / "sequence_search_debug.svg").exists()
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
@@ -405,7 +524,8 @@ def test_write_sequence_search_artifacts_from_report() -> None:
         assert loaded["scenarios"][2]["scenario_name"] == SCENARIO_RECURSIVE_ORACLE_ESTIMATE
         assert loaded["scenarios"][3]["scenario_name"] == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER
         assert loaded["scenarios"][4]["scenario_name"] == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER
-        assert loaded["scenarios"][5]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
+        assert loaded["scenarios"][5]["scenario_name"] == SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER
+        assert loaded["scenarios"][6]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
         assert loaded["neural_matcher_name"] is None
         assert "Sequence Search Debug" in svg_path.read_text(encoding="utf-8")
     finally:

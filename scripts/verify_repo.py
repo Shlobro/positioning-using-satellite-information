@@ -230,13 +230,14 @@ def verify_sequence_search() -> None:
             max_speed_mps=25.0,
             measurement_update_radius_m=5.0,
         )
-        assert len(artifacts.scenarios) == 6
+        assert len(artifacts.scenarios) == 7
         assert artifacts.scenarios[0].contained_frame_count == 2
         assert artifacts.scenarios[1].contained_frame_count == 2
         assert artifacts.scenarios[2].contained_frame_count == 2
         assert artifacts.scenarios[3].contained_frame_count == 2
         assert artifacts.scenarios[4].contained_frame_count == 2
         assert artifacts.scenarios[5].contained_frame_count == 2
+        assert artifacts.scenarios[6].contained_frame_count == 2
         assert artifacts.scenarios[1].frames[1].prior_source == "previous_frame_truth_oracle"
         assert artifacts.scenarios[1].frames[1].target_distance_m > 0.0
         assert artifacts.scenarios[2].frames[1].prior_source == "previous_estimate_recursive_oracle"
@@ -249,11 +250,15 @@ def verify_sequence_search() -> None:
         assert artifacts.scenarios[4].frames[1].estimate_source == "matched_image_baseline"
         assert artifacts.scenarios[4].matched_frame_count == 2
         assert artifacts.scenarios[4].mean_match_score is not None
-        assert artifacts.scenarios[5].frames[1].prior_source == "previous_estimate_recursive_classical"
-        assert artifacts.scenarios[5].frames[0].estimate_source == "fallback_classical_insufficient_features"
-        assert artifacts.scenarios[5].frames[1].estimate_source == "fallback_classical_insufficient_features"
-        assert artifacts.scenarios[5].matched_frame_count == 0
-        assert artifacts.scenarios[5].mean_match_score is None
+        assert artifacts.scenarios[5].frames[1].prior_source == "previous_estimate_recursive_image_map_constrained"
+        assert artifacts.scenarios[5].matched_frame_count == 2
+        assert artifacts.scenarios[5].map_constrained_frame_count == 0
+        assert artifacts.scenarios[5].map_limited_frame_count == 0
+        assert artifacts.scenarios[6].frames[1].prior_source == "previous_estimate_recursive_classical"
+        assert artifacts.scenarios[6].frames[0].estimate_source == "fallback_classical_insufficient_features"
+        assert artifacts.scenarios[6].frames[1].estimate_source == "fallback_classical_insufficient_features"
+        assert artifacts.scenarios[6].matched_frame_count == 0
+        assert artifacts.scenarios[6].mean_match_score is None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 

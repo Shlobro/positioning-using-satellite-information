@@ -87,3 +87,8 @@ Design notes:
   dense correspondences into a robust affine center estimate and keeps explicit
   fallback reasons so neural failures remain inspectable rather than being
   treated as oracle-quality localization.
+- The map-constrained sequence policy is measured as a separate scenario. It
+  caps search crops to the available calibrated reference extent, shifts the
+  crop center back into the tile when possible, keeps failed measurements from
+  replacing the previous state with an artificial clamped center, and rejects
+  accepted constrained updates that violate the motion envelope.

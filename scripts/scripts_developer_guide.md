@@ -28,6 +28,9 @@ Guidelines:
 - `sequence_search_replay.py` now also accepts `--roma-model` and
   `--roma-device` so a pretrained RoMa benchmark can be added to the artifact
   set when explicitly requested, without changing the default local verifier.
+- `sequence_search_replay.py` now prints `constrained=` and `limited=` counts
+  for sequence policies that shift crop centers or cap oversized crops to the
+  calibrated reference image.
 - `live_receiver_stub.py` is the Phase 1 minimal live intake entry point for one `live_frame` packet.
 - Repository-facing Python scripts should bootstrap `src/` explicitly so `python scripts/<tool>.py` works on a fresh checkout without installing the package first.
 - `verify_repo.py` is the deterministic repository verification path when direct `pytest` execution is not trustworthy in the local shell wrapper.
@@ -50,4 +53,7 @@ Guidelines:
 - The default verification path intentionally does not enable the optional RoMa
   scenario. Real neural benchmark runs should be invoked explicitly from the
   CLI so the verifier does not depend on heavyweight pretrained downloads.
+- The default sequence-search verification path now expects seven scenarios,
+  including `recursive_image_map_constrained_matcher`. RoMa-enabled real runs
+  add two more optional neural scenarios.
 - If in-session execution of `verify_repo.py` stalls, treat the user-run local output as authoritative instead of retrying repeatedly inside the agent wrapper.

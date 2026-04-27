@@ -89,6 +89,7 @@ def test_roma_matcher_recovers_synthetic_center_from_fake_backend() -> None:
             map_path,
             backend=FakeRoMaBackend(center_x=112.0, center_y=100.0),
             device="cpu",
+            sample_seed=20260427,
         )
 
         decision = matcher.match_frame(
@@ -110,6 +111,7 @@ def test_roma_matcher_recovers_synthetic_center_from_fake_backend() -> None:
         assert abs(decision.estimated_pixel_x - 112.0) < 3.0
         assert abs(decision.estimated_pixel_y - 100.0) < 3.0
         assert decision.match_score is not None
+        assert matcher.sample_seed == 20260427
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 

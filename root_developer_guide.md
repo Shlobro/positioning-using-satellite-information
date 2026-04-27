@@ -54,6 +54,11 @@ Current verification rule:
   scenario behind explicit `--roma-model` flags, so the repo can measure a
   pretrained neural matcher without making the default local verification path
   download or initialize heavy model weights.
+- The sequence-search evaluator now also includes a map-constrained recursive
+  image scenario, and the optional RoMa path adds a matching map-constrained
+  neural scenario. These policies cap oversized crops to the calibrated image
+  extent, shift the search center back into the tile when possible, and report
+  how often that happened.
 
 Guidelines:
 

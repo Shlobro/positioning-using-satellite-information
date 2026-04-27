@@ -56,11 +56,13 @@ class RoMaRegressionMatcher:
         device: str = "auto",
         backend: RoMaBackend | None = None,
         sample_count: int = DEFAULT_SAMPLE_COUNT,
+        sample_seed: int = 1337,
     ) -> None:
         self.map_image_path = map_image_path
         self.model_name = model_name
         self.device = _resolve_device(device)
         self.sample_count = sample_count
+        self.sample_seed = sample_seed
         self._map_image = _load_map_image(map_image_path)
         self._backend = backend if backend is not None else _load_backend(model_name=model_name, device=self.device)
 
@@ -115,6 +117,7 @@ class RoMaRegressionMatcher:
 
         map_crop = self._map_image.crop((search_left, search_top, search_right, search_bottom))
         matches, certainty = self._backend.match(frame_template, map_crop, device=self.device)
+        _seed_torch_sampling(seed=self.sample_seed, device=self.device)
         sampled_matches, sampled_certainty = self._backend.sample(matches, certainty, num=self.sample_count)
         match_count = int(sampled_matches.shape[0])
         if match_count < MIN_SAMPLED_MATCHES:
@@ -209,6 +212,18 @@ def _resolve_device(device: str) -> str:
     import torch
 
     return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _seed_torch_sampling(*, seed: int, device: str) -> None:
+    """Make RoMa correspondence sampling reproducible across benchmark runs."""
+    try:
+        import torch
+    except ImportError:
+        return
+
+    torch.manual_seed(seed)
+    if device.startswith("cuda") and torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def _load_map_image(image_path: Path) -> Image.Image:

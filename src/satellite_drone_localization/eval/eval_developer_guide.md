@@ -17,11 +17,14 @@ Current scope:
   to neural approaches.
 - `matcher_roma.py` holds the optional pretrained RoMa benchmark path used to
   compare recursive tracking against the classical and raster baselines.
+- `sequence_policy.py` holds reusable map-boundary policy helpers for
+  boundary-aware recursive search experiments.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
-- The sequence evaluator now reports six explicit policies:
+- The sequence evaluator now reports seven default explicit policies:
   `seed_only`, `oracle_previous_truth`, `recursive_oracle_estimate`,
   `recursive_placeholder_matcher`, `recursive_image_baseline_matcher`, and
+  `recursive_image_map_constrained_matcher`, and
   `recursive_classical_matcher`.
 - `recursive_oracle_estimate` is the first explicit stateful prior loop in the
   repo. It carries a previous accepted estimate forward and expands the next
@@ -57,6 +60,11 @@ Current scope:
   dense correspondences and then fits a robust affine center estimate inside
   the bounded crop. This neural scenario is opt-in so the default verifier
   does not download or initialize large model weights.
+- When RoMa is enabled, the evaluator also reports
+  `recursive_roma_map_constrained_matcher`, which applies the same
+  map-limited crop and motion-envelope guard used by the constrained raster
+  scenario. This keeps boundary-policy results separate from the original RoMa
+  benchmark.
 
 Guidelines:
 

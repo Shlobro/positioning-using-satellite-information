@@ -16,6 +16,7 @@ from .matcher_classical import ClassicalFeatureMatcher
 from .matcher_image_baseline import ImageBaselineMatcher
 from .matcher_roma import RoMaRegressionMatcher
 from .matcher_placeholder import build_truth_anchored_placeholder_match
+from .sequence_policy import constrain_prior_to_image, estimate_map_limited_square_side_m
 
 
 SCENARIO_SEED_ONLY = "seed_only"
@@ -23,16 +24,20 @@ SCENARIO_ORACLE_PREVIOUS_TRUTH = "oracle_previous_truth"
 SCENARIO_RECURSIVE_ORACLE_ESTIMATE = "recursive_oracle_estimate"
 SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER = "recursive_placeholder_matcher"
 SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER = "recursive_image_baseline_matcher"
+SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER = "recursive_image_map_constrained_matcher"
 SCENARIO_RECURSIVE_CLASSICAL_MATCHER = "recursive_classical_matcher"
 SCENARIO_RECURSIVE_ROMA_MATCHER = "recursive_roma_matcher"
+SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER = "recursive_roma_map_constrained_matcher"
 SCENARIO_NAMES = (
     SCENARIO_SEED_ONLY,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+    SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
     SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MATCHER,
+    SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
 )
 EARTH_RADIUS_M = 6_378_137.0
 
@@ -68,6 +73,8 @@ class SequenceFrameResult:
     estimate_distance_m: float
     prior_pixel_x: float
     prior_pixel_y: float
+    search_center_was_map_constrained: bool
+    crop_was_map_limited: bool
     target_pixel_x: float
     target_pixel_y: float
     estimate_pixel_x: float
@@ -93,6 +100,8 @@ class SequenceScenarioReport:
     matched_frame_count: int
     fallback_frame_count: int
     crop_inside_image_count: int
+    map_constrained_frame_count: int
+    map_limited_frame_count: int
     first_target_miss_frame_index: int | None
     first_crop_outside_image_frame_index: int | None
     longest_inside_image_streak: int
@@ -205,6 +214,18 @@ def build_sequence_search_artifacts(
             image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
         ),
         build_sequence_scenario_report(
+            scenario_name=SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
+            session=session,
+            georeference=georeference,
+            timestamps=timestamps,
+            first_timestamp=first_timestamp,
+            geometry_report=geometry_report.frames,
+            max_speed_mps=max_speed_mps,
+            base_search_radius_m=base_search_radius_m,
+            measurement_update_radius_m=measurement_update_radius_m,
+            image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
+        ),
+        build_sequence_scenario_report(
             scenario_name=SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
             session=session,
             georeference=georeference,
@@ -221,6 +242,20 @@ def build_sequence_search_artifacts(
         scenarios.append(
             build_sequence_scenario_report(
                 scenario_name=SCENARIO_RECURSIVE_ROMA_MATCHER,
+                session=session,
+                georeference=georeference,
+                timestamps=timestamps,
+                first_timestamp=first_timestamp,
+                geometry_report=geometry_report.frames,
+                max_speed_mps=max_speed_mps,
+                base_search_radius_m=base_search_radius_m,
+                measurement_update_radius_m=measurement_update_radius_m,
+                roma_matcher=roma_matcher,
+            )
+        )
+        scenarios.append(
+            build_sequence_scenario_report(
+                scenario_name=SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
                 session=session,
                 georeference=georeference,
                 timestamps=timestamps,
@@ -308,13 +343,39 @@ def build_sequence_scenario_report(
                 prior_source = "previous_estimate_recursive_placeholder"
             elif scenario_name == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER:
                 prior_source = "previous_estimate_recursive_image_baseline"
+            elif scenario_name == SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER:
+                prior_source = "previous_estimate_recursive_image_map_constrained"
             elif scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER:
                 prior_source = "previous_estimate_recursive_roma"
+            elif scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER:
+                prior_source = "previous_estimate_recursive_roma_map_constrained"
             else:
                 prior_source = "previous_estimate_recursive_classical"
             prior_search_radius_m = estimated_confidence_radius_m + (max_speed_mps * delta_seconds)
         crop_side_m = max(geometry.normalized_crop_size_m, prior_search_radius_m * 2.0 * DEFAULT_CROP_PADDING_FACTOR)
+        crop_was_map_limited = False
+        if is_map_constrained_scenario(scenario_name):
+            map_limited_crop_side_m = estimate_map_limited_square_side_m(georeference)
+            if crop_side_m > map_limited_crop_side_m:
+                crop_side_m = map_limited_crop_side_m
+                crop_was_map_limited = True
         half_side_m = crop_side_m / 2.0
+
+        fallback_latitude_deg = prior_latitude_deg
+        fallback_longitude_deg = prior_longitude_deg
+        search_center_was_map_constrained = False
+        if is_map_constrained_scenario(scenario_name):
+            (
+                prior_latitude_deg,
+                prior_longitude_deg,
+                search_center_was_map_constrained,
+            ) = constrain_prior_to_image(
+                georeference=georeference,
+                prior_latitude_deg=prior_latitude_deg,
+                prior_longitude_deg=prior_longitude_deg,
+                half_side_m=half_side_m,
+                build_crop_pixel_bounds=build_crop_pixel_bounds,
+            )
 
         target_offset_east_m, target_offset_north_m = meters_offset_between(
             origin_latitude_deg=prior_latitude_deg,
@@ -354,6 +415,8 @@ def build_sequence_scenario_report(
             geometry=geometry,
             prior_latitude_deg=prior_latitude_deg,
             prior_longitude_deg=prior_longitude_deg,
+            fallback_latitude_deg=fallback_latitude_deg,
+            fallback_longitude_deg=fallback_longitude_deg,
             prior_search_radius_m=prior_search_radius_m,
             crop_side_m=crop_side_m,
             target_distance_m=math.hypot(target_offset_east_m, target_offset_north_m),
@@ -415,6 +478,8 @@ def build_sequence_scenario_report(
                 estimate_pixel_y=estimate_pixel_y,
                 match_score=match_score,
                 runner_up_match_score=runner_up_match_score,
+                search_center_was_map_constrained=search_center_was_map_constrained,
+                crop_was_map_limited=crop_was_map_limited,
                 crop_min_x=crop_min_x,
                 crop_min_y=crop_min_y,
                 crop_max_x=crop_max_x,
@@ -428,8 +493,10 @@ def build_sequence_scenario_report(
             SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
             SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
             SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+            SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
             SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
             SCENARIO_RECURSIVE_ROMA_MATCHER,
+            SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
         ):
             estimated_latitude_deg = estimate_latitude_deg
             estimated_longitude_deg = estimate_longitude_deg
@@ -452,6 +519,8 @@ def build_sequence_scenario_report(
         matched_frame_count=matched_frame_count,
         fallback_frame_count=fallback_frame_count,
         crop_inside_image_count=sum(1 for frame in results if frame.crop_inside_image),
+        map_constrained_frame_count=sum(1 for frame in results if frame.search_center_was_map_constrained),
+        map_limited_frame_count=sum(1 for frame in results if frame.crop_was_map_limited),
         first_target_miss_frame_index=first_target_miss_frame_index,
         first_crop_outside_image_frame_index=first_crop_outside_image_frame_index,
         longest_inside_image_streak=longest_true_streak(frame.crop_inside_image for frame in results),
@@ -474,6 +543,8 @@ def build_estimate_update(
     geometry,
     prior_latitude_deg: float,
     prior_longitude_deg: float,
+    fallback_latitude_deg: float,
+    fallback_longitude_deg: float,
     prior_search_radius_m: float,
     crop_side_m: float,
     target_distance_m: float,
@@ -547,8 +618,8 @@ def build_estimate_update(
         fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
         return (
             decision.estimate_source,
-            prior_latitude_deg,
-            prior_longitude_deg,
+            fallback_latitude_deg,
+            fallback_longitude_deg,
             fallback_confidence_radius_m,
             None,
             None,
@@ -558,7 +629,7 @@ def build_estimate_update(
     crop_height_px = max(1.0, crop_max_y - crop_min_y)
     ground_width_px = geometry.ground_width_m * (crop_width_px / crop_side_m)
     ground_height_px = geometry.ground_height_m * (crop_height_px / crop_side_m)
-    if scenario_name == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER:
+    if scenario_name in (SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER, SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER):
         if image_baseline_matcher is None:
             raise ValueError("image_baseline_matcher is required for recursive image baseline scenario")
         decision = image_baseline_matcher.match_frame(
@@ -611,6 +682,23 @@ def build_estimate_update(
             decision.estimated_pixel_x,
             decision.estimated_pixel_y,
         )
+        if is_map_constrained_scenario(scenario_name):
+            update_east_m, update_north_m = meters_offset_between(
+                origin_latitude_deg=fallback_latitude_deg,
+                origin_longitude_deg=fallback_longitude_deg,
+                target_latitude_deg=estimated_latitude_deg,
+                target_longitude_deg=estimated_longitude_deg,
+            )
+            if math.hypot(update_east_m, update_north_m) > prior_search_radius_m + measurement_update_radius_m:
+                fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
+                return (
+                    "fallback_map_constrained_update_outside_motion_gate",
+                    fallback_latitude_deg,
+                    fallback_longitude_deg,
+                    fallback_confidence_radius_m,
+                    decision.match_score,
+                    decision.runner_up_match_score,
+                )
         return (
             decision.estimate_source,
             estimated_latitude_deg,
@@ -623,8 +711,8 @@ def build_estimate_update(
     fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
     return (
         decision.estimate_source,
-        prior_latitude_deg,
-        prior_longitude_deg,
+        fallback_latitude_deg,
+        fallback_longitude_deg,
         fallback_confidence_radius_m,
         decision.match_score,
         decision.runner_up_match_score,
@@ -675,6 +763,8 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
                 "matched_frame_count": scenario.matched_frame_count,
                 "fallback_frame_count": scenario.fallback_frame_count,
                 "crop_inside_image_count": scenario.crop_inside_image_count,
+                "map_constrained_frame_count": scenario.map_constrained_frame_count,
+                "map_limited_frame_count": scenario.map_limited_frame_count,
                 "first_target_miss_frame_index": scenario.first_target_miss_frame_index,
                 "first_crop_outside_image_frame_index": scenario.first_crop_outside_image_frame_index,
                 "longest_inside_image_streak": scenario.longest_inside_image_streak,
@@ -718,8 +808,10 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
         SCENARIO_RECURSIVE_ORACLE_ESTIMATE: ("#2b9348", "#b7e4c7"),
         SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER: ("#6a4c93", "#d4b8f2"),
         SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER: ("#8a5a44", "#f4d6c2"),
+        SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER: ("#9d4edd", "#ead7ff"),
         SCENARIO_RECURSIVE_CLASSICAL_MATCHER: ("#1d3557", "#a8dadc"),
         SCENARIO_RECURSIVE_ROMA_MATCHER: ("#264653", "#bde0d8"),
+        SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER: ("#006d77", "#caf0f8"),
     }
     overlay_parts: list[str] = []
     for scenario in artifacts.scenarios:
@@ -740,7 +832,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
     text_y = origin_y + map_height + 24.0
     for scenario in artifacts.scenarios:
         summary_lines.append(
-            f'<text x="40" y="{text_y:.0f}" font-family="monospace" font-size="12" fill="#213547">{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} map={scenario.crop_inside_image_count}/{scenario.frame_count} matches={scenario.matched_frame_count} err_mean={scenario.mean_estimate_error_m:.1f}m err_max={scenario.max_estimate_error_m:.1f}m score_mean={format_optional_float(scenario.mean_match_score)} first_offmap={format_optional_index(scenario.first_crop_outside_image_frame_index)} streak={scenario.longest_inside_image_streak} avg_crop={scenario.average_crop_side_m:.1f}m</text>'
+            f'<text x="40" y="{text_y:.0f}" font-family="monospace" font-size="12" fill="#213547">{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} map={scenario.crop_inside_image_count}/{scenario.frame_count} constrained={scenario.map_constrained_frame_count} limited={scenario.map_limited_frame_count} matches={scenario.matched_frame_count} err_mean={scenario.mean_estimate_error_m:.1f}m err_max={scenario.max_estimate_error_m:.1f}m score_mean={format_optional_float(scenario.mean_match_score)} first_offmap={format_optional_index(scenario.first_crop_outside_image_frame_index)} streak={scenario.longest_inside_image_streak} avg_crop={scenario.average_crop_side_m:.1f}m</text>'
         )
         text_y += 16.0
 
@@ -778,6 +870,11 @@ def describe_scenario(scenario_name: str) -> str:
             "Stateful prior loop that feeds back a simple real image-template baseline "
             "measured inside the calibrated satellite crop, so recursive tracking can be compared against placeholder and oracle scenarios."
         )
+    if scenario_name == SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER:
+        return (
+            "Stateful image-baseline loop that shifts the search center back into the calibrated map bounds when possible, "
+            "so map-boundary persistence can be measured without changing the original raster baseline."
+        )
     if scenario_name == SCENARIO_RECURSIVE_CLASSICAL_MATCHER:
         return (
             "Stateful prior loop that feeds back a classical local-feature matcher "
@@ -787,6 +884,11 @@ def describe_scenario(scenario_name: str) -> str:
         return (
             "Stateful prior loop that feeds back a pretrained RoMa matcher "
             "inside the calibrated satellite crop, so the first neural baseline can be compared directly against the classical and raster baselines."
+        )
+    if scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER:
+        return (
+            "Stateful RoMa loop that shifts the search center back into the calibrated map bounds when possible, "
+            "so the neural benchmark can test whether boundary-aware bootstrap policy improves persistence."
         )
     raise ValueError(f"unsupported scenario_name '{scenario_name}'")
 
@@ -832,6 +934,14 @@ def is_match_source(source: str) -> bool:
 def is_fallback_source(source: str) -> bool:
     """Return whether the estimate source represents a fallback instead of a measurement update."""
     return source.startswith("fallback_") or source == "prior_only_no_matcher"
+
+
+def is_map_constrained_scenario(scenario_name: str) -> bool:
+    """Return whether a scenario uses image-boundary-aware search-center adjustment."""
+    return scenario_name in {
+        SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
+        SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+    }
 
 
 def offset_latlon_by_meters(
