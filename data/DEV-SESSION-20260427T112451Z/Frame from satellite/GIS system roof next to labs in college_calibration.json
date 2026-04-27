@@ -1,0 +1,45 @@
+{
+  "image": "C:/Users/shlob/Pycharm Projects/Satellite-drone-localization/data/DEV-SESSION-20260427T112451Z/Frame from satellite/GIS system roof next to labs in college.png",
+  "calibration_points": [
+    {
+      "pixel": [
+        775,
+        296
+      ],
+      "gps": {
+        "lat": 31.769083,
+        "lng": 35.193431
+      }
+    },
+    {
+      "pixel": [
+        904,
+        385
+      ],
+      "gps": {
+        "lat": 31.768874,
+        "lng": 35.193797
+      }
+    },
+    {
+      "pixel": [
+        876,
+        468
+      ],
+      "gps": {
+        "lat": 31.768676,
+        "lng": 35.193716
+      }
+    },
+    {
+      "pixel": [
+        792,
+        564
+      ],
+      "gps": {
+        "lat": 31.768446,
+        "lng": 35.193464
+      }
+    }
+  ]
+}
