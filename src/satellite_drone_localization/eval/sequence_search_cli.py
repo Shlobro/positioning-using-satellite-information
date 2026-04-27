@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ..map_georeference import load_map_georeference
 from ..packet_replay import load_replay_session
+from .matcher_roma import RoMaRegressionMatcher
 from .sequence_search import build_sequence_search_artifacts, write_sequence_search_debug_svg, write_sequence_search_summary
 
 
@@ -50,6 +51,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional output directory. Defaults to artifacts/sequence-search/<replay-stem> under the current working directory.",
     )
+    parser.add_argument(
+        "--roma-model",
+        choices=("none", "roma_outdoor", "tiny_roma_v1_outdoor"),
+        default="none",
+        help="Optional pretrained RoMa model to benchmark in an additional recursive scenario. Defaults to none.",
+    )
+    parser.add_argument(
+        "--roma-device",
+        choices=("auto", "cpu", "cuda"),
+        default="auto",
+        help="Device for the optional RoMa benchmark scenario. Defaults to auto.",
+    )
     return parser
 
 
@@ -61,12 +74,20 @@ def main(argv: list[str] | None = None) -> int:
     calibration_path = Path(args.calibration_file).resolve()
     session = load_replay_session(replay_path)
     georeference = load_map_georeference(calibration_path)
+    roma_matcher = None
+    if args.roma_model != "none":
+        roma_matcher = RoMaRegressionMatcher(
+            georeference.image_path,
+            model_name=args.roma_model,
+            device=args.roma_device,
+        )
     artifacts = build_sequence_search_artifacts(
         session,
         georeference,
         max_speed_mps=args.max_speed_mps,
         base_search_radius_m=args.base_search_radius_m,
         measurement_update_radius_m=args.measurement_update_radius_m,
+        roma_matcher=roma_matcher,
     )
 
     if args.output_dir:
@@ -83,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Frames: {artifacts.scenarios[0].frame_count}")
     print(f"Image size: {artifacts.image_width_px} x {artifacts.image_height_px}")
     print(f"Georeference max residual: {artifacts.georeference_max_residual_m:.2f} m")
+    if artifacts.neural_matcher_name is not None:
+        print(f"Neural matcher: {artifacts.neural_matcher_name}")
     for scenario in artifacts.scenarios:
         score_text = (
             f" score_mean={scenario.mean_match_score:.2f}"

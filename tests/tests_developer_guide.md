@@ -34,10 +34,16 @@ Current scope:
 - matcher-classical tests verify the OpenCV-backed local-feature matcher can
   recover a synthetic crop center, reject low-texture inputs, and fall back
   cleanly when the crop is off-map.
+- matcher-roma tests verify the optional RoMa matcher can recover a synthetic
+  crop center through an injected fake backend and reject low-texture inputs
+  without requiring real model downloads during repo verification.
 - the sequence-search fixture currently expects the recursive classical
   scenario to fail honestly with feature-insufficient fallbacks on its tiny
   synthetic map, because that fixture is meant to verify bookkeeping and
   fallback behavior rather than prove strong feature richness.
+- the sequence-search tests now also verify that an explicitly injected RoMa
+  matcher adds `recursive_roma_matcher` as an optional scenario and preserves
+  the existing default six-scenario verifier behavior when RoMa is disabled.
 
 Guidelines:
 

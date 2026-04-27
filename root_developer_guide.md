@@ -31,6 +31,10 @@ Current verification rule:
   agent when they are directly relevant to the task, but if the shell cannot
   reach the user's interpreter or hits sandbox restrictions, the agent should
   request escalation instead of assuming Python is unavailable.
+- Dependency choices in this repository must stay compatible with closed-source
+  commercial use. Before adding or installing a new library, check the license
+  from primary sources and avoid dependencies that would require the project to
+  be open sourced or trigger copyleft disclosure obligations.
 - Once a vertical slice has the necessary code and documentation updates plus
   pasted verification evidence from the required workflow, that is the right
   time for the agent to suggest a commit and ask whether the user wants one.
@@ -46,6 +50,10 @@ Current verification rule:
 - The sequence-search slice now also includes a classical local-feature
   matcher scenario so the project can measure a stronger non-neural baseline
   before moving to pretrained neural matchers.
+- The sequence-search CLI now also supports an optional RoMa benchmark
+  scenario behind explicit `--roma-model` flags, so the repo can measure a
+  pretrained neural matcher without making the default local verification path
+  download or initialize heavy model weights.
 
 Guidelines:
 

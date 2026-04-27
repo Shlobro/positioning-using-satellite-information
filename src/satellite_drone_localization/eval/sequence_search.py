@@ -14,6 +14,7 @@ from ..map_georeference import MapGeoreference
 from ..packet_replay import ReplaySession
 from .matcher_classical import ClassicalFeatureMatcher
 from .matcher_image_baseline import ImageBaselineMatcher
+from .matcher_roma import RoMaRegressionMatcher
 from .matcher_placeholder import build_truth_anchored_placeholder_match
 
 
@@ -23,6 +24,7 @@ SCENARIO_RECURSIVE_ORACLE_ESTIMATE = "recursive_oracle_estimate"
 SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER = "recursive_placeholder_matcher"
 SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER = "recursive_image_baseline_matcher"
 SCENARIO_RECURSIVE_CLASSICAL_MATCHER = "recursive_classical_matcher"
+SCENARIO_RECURSIVE_ROMA_MATCHER = "recursive_roma_matcher"
 SCENARIO_NAMES = (
     SCENARIO_SEED_ONLY,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
@@ -30,6 +32,7 @@ SCENARIO_NAMES = (
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
     SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
+    SCENARIO_RECURSIVE_ROMA_MATCHER,
 )
 EARTH_RADIUS_M = 6_378_137.0
 
@@ -118,6 +121,7 @@ class SequenceSearchArtifacts:
     max_speed_mps: float
     base_search_radius_m: float
     measurement_update_radius_m: float
+    neural_matcher_name: str | None
     scenarios: list[SequenceScenarioReport]
 
 
@@ -128,6 +132,7 @@ def build_sequence_search_artifacts(
     max_speed_mps: float,
     base_search_radius_m: float = 0.0,
     measurement_update_radius_m: float = 5.0,
+    roma_matcher: RoMaRegressionMatcher | None = None,
 ) -> SequenceSearchArtifacts:
     """Evaluate multiple motion-bounded prior scenarios for one replay session."""
     if max_speed_mps <= 0.0:
@@ -212,6 +217,21 @@ def build_sequence_search_artifacts(
             classical_feature_matcher=ClassicalFeatureMatcher(georeference.image_path),
         ),
     ]
+    if roma_matcher is not None:
+        scenarios.append(
+            build_sequence_scenario_report(
+                scenario_name=SCENARIO_RECURSIVE_ROMA_MATCHER,
+                session=session,
+                georeference=georeference,
+                timestamps=timestamps,
+                first_timestamp=first_timestamp,
+                geometry_report=geometry_report.frames,
+                max_speed_mps=max_speed_mps,
+                base_search_radius_m=base_search_radius_m,
+                measurement_update_radius_m=measurement_update_radius_m,
+                roma_matcher=roma_matcher,
+            )
+        )
 
     return SequenceSearchArtifacts(
         session_id=session.session_id,
@@ -225,6 +245,7 @@ def build_sequence_search_artifacts(
         max_speed_mps=max_speed_mps,
         base_search_radius_m=base_search_radius_m,
         measurement_update_radius_m=measurement_update_radius_m,
+        neural_matcher_name=roma_matcher.model_name if roma_matcher is not None else None,
         scenarios=scenarios,
     )
 
@@ -242,6 +263,7 @@ def build_sequence_scenario_report(
     measurement_update_radius_m: float,
     image_baseline_matcher: ImageBaselineMatcher | None = None,
     classical_feature_matcher: ClassicalFeatureMatcher | None = None,
+    roma_matcher: RoMaRegressionMatcher | None = None,
 ) -> SequenceScenarioReport:
     """Evaluate one sequence-prior scenario."""
     if scenario_name not in SCENARIO_NAMES:
@@ -286,6 +308,8 @@ def build_sequence_scenario_report(
                 prior_source = "previous_estimate_recursive_placeholder"
             elif scenario_name == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER:
                 prior_source = "previous_estimate_recursive_image_baseline"
+            elif scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER:
+                prior_source = "previous_estimate_recursive_roma"
             else:
                 prior_source = "previous_estimate_recursive_classical"
             prior_search_radius_m = estimated_confidence_radius_m + (max_speed_mps * delta_seconds)
@@ -341,6 +365,7 @@ def build_sequence_scenario_report(
             measurement_update_radius_m=measurement_update_radius_m,
             image_baseline_matcher=image_baseline_matcher,
             classical_feature_matcher=classical_feature_matcher,
+            roma_matcher=roma_matcher,
             crop_min_x=crop_min_x,
             crop_min_y=crop_min_y,
             crop_max_x=crop_max_x,
@@ -404,6 +429,7 @@ def build_sequence_scenario_report(
             SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
             SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
             SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
+            SCENARIO_RECURSIVE_ROMA_MATCHER,
         ):
             estimated_latitude_deg = estimate_latitude_deg
             estimated_longitude_deg = estimate_longitude_deg
@@ -459,6 +485,7 @@ def build_estimate_update(
     measurement_update_radius_m: float,
     image_baseline_matcher: ImageBaselineMatcher | None,
     classical_feature_matcher: ClassicalFeatureMatcher | None,
+    roma_matcher: RoMaRegressionMatcher | None,
     crop_min_x: float,
     crop_min_y: float,
     crop_max_x: float,
@@ -547,10 +574,26 @@ def build_estimate_update(
             measurement_update_radius_m=measurement_update_radius_m,
             georeference_max_residual_m=georeference.max_residual_m,
         )
-    else:
+    elif scenario_name == SCENARIO_RECURSIVE_CLASSICAL_MATCHER:
         if classical_feature_matcher is None:
             raise ValueError("classical_feature_matcher is required for recursive classical scenario")
         decision = classical_feature_matcher.match_frame(
+            frame_image_path=frame.image_path,
+            normalization_rotation_deg=geometry.normalization_rotation_deg,
+            ground_width_px=ground_width_px,
+            ground_height_px=ground_height_px,
+            crop_min_x=crop_min_x,
+            crop_min_y=crop_min_y,
+            crop_max_x=crop_max_x,
+            crop_max_y=crop_max_y,
+            crop_inside_image=crop_inside_image,
+            measurement_update_radius_m=measurement_update_radius_m,
+            georeference_max_residual_m=georeference.max_residual_m,
+        )
+    else:
+        if roma_matcher is None:
+            raise ValueError("roma_matcher is required for recursive RoMa scenario")
+        decision = roma_matcher.match_frame(
             frame_image_path=frame.image_path,
             normalization_rotation_deg=geometry.normalization_rotation_deg,
             ground_width_px=ground_width_px,
@@ -622,6 +665,7 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
         "max_speed_mps": artifacts.max_speed_mps,
         "base_search_radius_m": artifacts.base_search_radius_m,
         "measurement_update_radius_m": artifacts.measurement_update_radius_m,
+        "neural_matcher_name": artifacts.neural_matcher_name,
         "scenarios": [
             {
                 "scenario_name": scenario.scenario_name,
@@ -675,6 +719,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
         SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER: ("#6a4c93", "#d4b8f2"),
         SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER: ("#8a5a44", "#f4d6c2"),
         SCENARIO_RECURSIVE_CLASSICAL_MATCHER: ("#1d3557", "#a8dadc"),
+        SCENARIO_RECURSIVE_ROMA_MATCHER: ("#264653", "#bde0d8"),
     }
     overlay_parts: list[str] = []
     for scenario in artifacts.scenarios:
@@ -738,6 +783,11 @@ def describe_scenario(scenario_name: str) -> str:
             "Stateful prior loop that feeds back a classical local-feature matcher "
             "inside the calibrated satellite crop, so a stronger non-neural baseline can be compared against the raster baseline and oracle ceilings."
         )
+    if scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER:
+        return (
+            "Stateful prior loop that feeds back a pretrained RoMa matcher "
+            "inside the calibrated satellite crop, so the first neural baseline can be compared directly against the classical and raster baselines."
+        )
     raise ValueError(f"unsupported scenario_name '{scenario_name}'")
 
 
@@ -775,6 +825,7 @@ def is_match_source(source: str) -> bool:
         "matched_placeholder_truth_anchored",
         "matched_image_baseline",
         "matched_classical_feature",
+        "matched_roma",
     }
 
 

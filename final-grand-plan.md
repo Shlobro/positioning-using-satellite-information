@@ -904,3 +904,15 @@ The project is only done when all of the following are true:
 - What was done: Fixed the new classical-matcher verification expectations after the required local harness showed the tiny synthetic sequence fixture does not reliably produce a successful feature match.
 - What we learned: The deterministic verifier fixture is too small and texture-poor to serve as proof that the classical matcher should accept updates. Its stable value is that it verifies scenario wiring and honest fallback bookkeeping. In that fixture, `fallback_classical_insufficient_features` on both frames is the correct invariant.
 - How the plan changed: No phase ordering changed, but verification discipline for matcher slices is clearer again: synthetic repo fixtures should assert stable bookkeeping and fallback behavior, while real-session usefulness must be judged from replay artifacts rather than overfit synthetic-success assertions.
+
+### 2026-04-27
+
+- What was done: Added a root-level dependency policy that future libraries must be compatible with closed-source commercial use, and that agents must verify licenses from primary sources before adding or installing them.
+- What we learned: Dependency selection is part of the measurable research workflow, not just an implementation detail. A technically promising matcher package is still the wrong next step if its license would force unwanted disclosure obligations or if the license situation is unclear.
+- How the plan changed: Future Phase 2 and Phase 3 matcher integrations must now include an explicit license check before the package is adopted into repo code or documented as a supported dependency.
+
+### 2026-04-27
+
+- What was done: Added the first optional pretrained RoMa benchmark path to the recursive sequence evaluator, plus a CLI flag to enable it and deterministic fake-backend tests so the default verifier stays lightweight.
+- What we learned: The first neural benchmark did not rescue this session by itself. On `DEV-SESSION-20260427T112451Z`, `recursive_roma_matcher` improved mean estimate error slightly to `10.76m`, but it still accepted only `1/92` matches and failed mostly because the recursive crop left the map after bootstrap (`fallback_roma_crop_outside_map: 88`). Neural matching quality helped somewhat on the single accepted update, but map persistence and early bootstrap remain the primary bottlenecks.
+- How the plan changed: Phase 3 is now partially realized as a real benchmark path, but the next slice should not assume that "use a neural matcher" is enough. The next sequence work should focus on better bootstrap and operating-envelope policy, now informed by a directly measured neural baseline instead of speculation.

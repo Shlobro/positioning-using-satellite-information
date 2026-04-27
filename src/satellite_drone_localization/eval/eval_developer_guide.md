@@ -15,6 +15,8 @@ Current scope:
 - `matcher_classical.py` holds the stronger classical local-feature baseline
   used to compare recursive tracking against the raster matcher before moving
   to neural approaches.
+- `matcher_roma.py` holds the optional pretrained RoMa benchmark path used to
+  compare recursive tracking against the classical and raster baselines.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
 - The sequence evaluator now reports six explicit policies:
@@ -50,6 +52,11 @@ Current scope:
   bounded crop. This scenario is useful even when it fails, because the
   estimate-source breakdown shows whether the classical path is failing from
   off-map priors, low feature count, or weak geometric support.
+- When explicitly enabled, the sequence evaluator now also reports
+  `recursive_roma_matcher`, which uses a pretrained RoMa model to generate
+  dense correspondences and then fits a robust affine center estimate inside
+  the bounded crop. This neural scenario is opt-in so the default verifier
+  does not download or initialize large model weights.
 
 Guidelines:
 
@@ -70,3 +77,6 @@ Guidelines:
 - When adding image-matcher gates, measure both error and map persistence on a
   real replay. A stricter gate is only useful if it improves recursive behavior
   or makes failure more honest in the artifact summaries.
+- When adding optional heavy matchers, keep the default repo verification path
+  lightweight and deterministic. Use injected fake backends in tests and real
+  replay measurements for the actual benchmark value.

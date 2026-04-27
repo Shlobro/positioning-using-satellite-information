@@ -17,6 +17,9 @@ dependencies = [
 dev = [
   "pytest>=8.3,<9.0",
 ]
+neural = [
+  "romatch>=0.1.2,<0.2",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

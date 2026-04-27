@@ -25,6 +25,9 @@ Guidelines:
 - `sequence_search_replay.py` now also reports the classical local-feature
   matcher scenario so the real-session artifact can compare raster and
   feature-based non-neural baselines side by side.
+- `sequence_search_replay.py` now also accepts `--roma-model` and
+  `--roma-device` so a pretrained RoMa benchmark can be added to the artifact
+  set when explicitly requested, without changing the default local verifier.
 - `live_receiver_stub.py` is the Phase 1 minimal live intake entry point for one `live_frame` packet.
 - Repository-facing Python scripts should bootstrap `src/` explicitly so `python scripts/<tool>.py` works on a fresh checkout without installing the package first.
 - `verify_repo.py` is the deterministic repository verification path when direct `pytest` execution is not trustworthy in the local shell wrapper.
@@ -44,4 +47,7 @@ Guidelines:
   local-feature scenario with the same centered synthetic raster fixture.
   In that tiny deterministic fixture the honest expected outcome is currently a
   feature-insufficient fallback, not a successful classical match.
+- The default verification path intentionally does not enable the optional RoMa
+  scenario. Real neural benchmark runs should be invoked explicitly from the
+  CLI so the verifier does not depend on heavyweight pretrained downloads.
 - If in-session execution of `verify_repo.py` stalls, treat the user-run local output as authoritative instead of retrying repeatedly inside the agent wrapper.

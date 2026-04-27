@@ -30,6 +30,10 @@ Current responsibilities:
 - support a classical local-feature matcher in the `eval/` subpackage so the
   recursive loop can also be measured with AKAZE/ORB-style correspondences
   before neural matchers are introduced
+- support an optional RoMa matcher in the `eval/` subpackage so the first
+  pretrained neural benchmark can run inside the same recursive crop and
+  prior-update interface without becoming mandatory for the default repo
+  verification path
 
 Design notes:
 
@@ -78,3 +82,8 @@ Design notes:
   crop plus OpenCV feature correspondences so negative results still teach us
   whether close-range frames are failing because of representation, geometry,
   or simple lack of matchable structure.
+- The RoMa matcher follows the same measurement philosophy: it is an optional
+  benchmark path, not a silent replacement of earlier baselines. It converts
+  dense correspondences into a robust affine center estimate and keeps explicit
+  fallback reasons so neural failures remain inspectable rather than being
+  treated as oracle-quality localization.

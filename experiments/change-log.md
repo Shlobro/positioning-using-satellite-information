@@ -233,3 +233,15 @@
 - intent: Update manual verification artifacts to reflect the new project root and improve the robustness of the verification script.
 - linked run_ids: none
 - actual result: Artifact paths were updated to the current project directory, and `run_pytest_isolation.bat` was updated to use a more generic Python launcher and properly detect PowerShell environments.
+
+- owner: Codex
+- files changed: `AGENTS.md`, `root_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add an explicit repository rule that future dependency choices must remain compatible with closed-source commercial use and must be license-checked from primary sources before integration.
+- linked run_ids: none
+- actual result: The repository instructions now forbid casually adding copyleft or source-disclosure-triggering dependencies for this project. Agents must verify licenses from primary sources before adding or installing libraries, and must stop to ask the user if a dependency's commercial-use position is unclear.
+
+- owner: Codex
+- files changed: `pyproject.toml`, `src/satellite_drone_localization/eval/matcher_roma.py`, `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/sequence_search_cli.py`, `src/satellite_drone_localization/eval/__init__.py`, `tests/test_matcher_roma.py`, `tests/test_sequence_search.py`, `root_developer_guide.md`, `src/src_developer_guide.md`, `src/satellite_drone_localization/satellite_drone_localization_developer_guide.md`, `src/satellite_drone_localization/eval/eval_developer_guide.md`, `tests/tests_developer_guide.md`, `scripts/scripts_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add the first optional pretrained RoMa benchmark path to the recursive sequence evaluator so the project can measure a neural matcher in the same bounded crop interface without bloating the default verifier.
+- linked run_ids: none
+- actual result: The evaluator now supports an opt-in `recursive_roma_matcher` scenario through `--roma-model`, backed by a RoMa correspondence fit with explicit fallback reasons and deterministic fake-backend tests. On `DEV-SESSION-20260427T112451Z` with `roma_outdoor` on CUDA, the neural path slightly improved mean estimate error to `10.76m` but still accepted only `1/92` matches, with failures dominated by `fallback_roma_crop_outside_map: 88`, plus one `fallback_roma_low_certainty` and two `fallback_roma_weak_inlier_support` cases. This is a useful measured result: the first neural benchmark integrates cleanly, but the session is still mostly limited by bootstrap/map persistence rather than by the raster-versus-neural matcher family alone.

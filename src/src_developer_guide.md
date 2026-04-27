@@ -39,6 +39,10 @@ Current scope:
   OpenCV-backed local-feature matcher baseline so recursive sequence updates
   can be compared against a stronger non-neural measurement model before the
   project moves to pretrained neural matchers.
+- `satellite_drone_localization/eval/` now also holds an optional
+  RoMa-backed neural matcher path that is enabled only when the caller asks
+  for it, so pretrained benchmarking does not bloat the default verification
+  flow.
 
 Guidelines:
 
