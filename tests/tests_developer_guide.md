@@ -15,6 +15,9 @@ Current scope:
 - sequence-search tests now also verify the first explicit recursive prior
   feedback scenario, including its carried confidence radius and prior-source
   labeling.
+- matcher-placeholder tests verify the deterministic stand-in measurement model
+  accepts centered on-map targets and falls back cleanly when the crop leaves
+  the calibrated image.
 
 Guidelines:
 

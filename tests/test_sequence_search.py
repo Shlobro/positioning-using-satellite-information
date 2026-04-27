@@ -7,6 +7,7 @@ import tempfile
 
 from satellite_drone_localization.eval.sequence_search import (
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
+    SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_SEED_ONLY,
     build_sequence_search_artifacts,
@@ -63,8 +64,8 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
                     "packet_type": "frame",
                     "timestamp_utc": "2026-04-20T10:15:30Z",
                     "image_name": "frame_0001.jpg",
-                    "latitude_deg": 31.0000,
-                    "longitude_deg": 35.0000,
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
                     "altitude_m": 20.0,
                     "heading_deg": 0.0,
                     "frame_width_px": 4000,
@@ -74,8 +75,8 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
                     "packet_type": "frame",
                     "timestamp_utc": "2026-04-20T10:15:31Z",
                     "image_name": "frame_0002.jpg",
-                    "latitude_deg": 31.0000,
-                    "longitude_deg": 35.0002,
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0012,
                     "altitude_m": 20.0,
                     "heading_deg": 0.0,
                     "frame_width_px": 4000,
@@ -96,14 +97,17 @@ def test_build_sequence_search_artifacts_reports_seed_oracle_and_recursive_modes
             SCENARIO_SEED_ONLY,
             SCENARIO_ORACLE_PREVIOUS_TRUTH,
             SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
+            SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
         ]
         assert artifacts.scenarios[0].frame_count == 2
         assert artifacts.scenarios[0].frames[1].contains_target is True
         assert artifacts.scenarios[1].frames[1].target_distance_m > 0.0
         assert artifacts.scenarios[2].frames[1].prior_source == "previous_estimate_recursive_oracle"
         assert artifacts.scenarios[2].frames[1].prior_search_radius_m == 30.0
-        assert artifacts.scenarios[2].longest_inside_image_streak >= 0
-        assert artifacts.scenarios[2].first_crop_outside_image_frame_index in (0, 1, None)
+        assert artifacts.scenarios[3].frames[1].prior_source == "previous_estimate_recursive_placeholder"
+        assert artifacts.scenarios[3].frames[1].estimate_source == "matched_placeholder_truth_anchored"
+        assert artifacts.scenarios[3].matched_frame_count == 2
+        assert artifacts.scenarios[3].max_estimate_error_m > 0.0
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -126,8 +130,8 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
                     "packet_type": "frame",
                     "timestamp_utc": "2026-04-20T10:15:30Z",
                     "image_name": "frame_0001.jpg",
-                    "latitude_deg": 31.0000,
-                    "longitude_deg": 35.0000,
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
                     "altitude_m": 20.0,
                     "heading_deg": 0.0,
                     "frame_width_px": 4000,
@@ -137,8 +141,8 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
                     "packet_type": "frame",
                     "timestamp_utc": "2026-04-20T10:15:31Z",
                     "image_name": "frame_0002.jpg",
-                    "latitude_deg": 31.0000,
-                    "longitude_deg": 35.0002,
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0012,
                     "altitude_m": 20.0,
                     "heading_deg": 0.0,
                     "frame_width_px": 4000,
@@ -161,8 +165,9 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
 
         summary = json.loads((output_dir / "sequence_search_summary.json").read_text(encoding="utf-8"))
         assert exit_code == 0
-        assert len(summary["scenarios"]) == 3
+        assert len(summary["scenarios"]) == 4
         assert summary["measurement_update_radius_m"] == 5.0
+        assert summary["scenarios"][3]["scenario_name"] == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER
         assert (output_dir / "sequence_search_debug.svg").exists()
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
@@ -187,8 +192,8 @@ def test_write_sequence_search_artifacts_from_report() -> None:
                     "packet_type": "frame",
                     "timestamp_utc": "2026-04-20T10:15:30Z",
                     "image_name": "frame_0001.jpg",
-                    "latitude_deg": 31.0000,
-                    "longitude_deg": 35.0000,
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
                     "altitude_m": 20.0,
                     "heading_deg": 0.0,
                     "frame_width_px": 4000,
@@ -198,8 +203,8 @@ def test_write_sequence_search_artifacts_from_report() -> None:
                     "packet_type": "frame",
                     "timestamp_utc": "2026-04-20T10:15:31Z",
                     "image_name": "frame_0002.jpg",
-                    "latitude_deg": 31.0000,
-                    "longitude_deg": 35.0002,
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0012,
                     "altitude_m": 20.0,
                     "heading_deg": 0.0,
                     "frame_width_px": 4000,
@@ -220,6 +225,7 @@ def test_write_sequence_search_artifacts_from_report() -> None:
         loaded = json.loads(summary_path.read_text(encoding="utf-8"))
         assert loaded["scenarios"][0]["scenario_name"] == SCENARIO_SEED_ONLY
         assert loaded["scenarios"][2]["scenario_name"] == SCENARIO_RECURSIVE_ORACLE_ESTIMATE
+        assert loaded["scenarios"][3]["scenario_name"] == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER
         assert "Sequence Search Debug" in svg_path.read_text(encoding="utf-8")
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)

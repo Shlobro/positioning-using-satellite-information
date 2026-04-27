@@ -15,6 +15,9 @@ Current scope:
 - `satellite_drone_localization/eval/` now also holds the first explicit
   recursive prior-propagation experiment, so sequence policy changes can be
   measured before a real image matcher exists.
+- `satellite_drone_localization/eval/` now also holds a deterministic
+  placeholder matcher module so recursive sequence updates can be scored with
+  non-zero localization error before a real perception stack lands.
 
 Guidelines:
 

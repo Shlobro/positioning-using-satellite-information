@@ -832,3 +832,9 @@ The project is only done when all of the following are true:
 - What was done: Relaxed the recursive verifier again after the next local run showed the same tiny synthetic map can legitimately yield a zero-length on-image streak for the recursive scenario.
 - What we learned: Even “some on-map time” was still a geometry-specific assumption in that fixture. The reliable verification target here is the policy bookkeeping itself, not whether a minimal synthetic calibration happens to keep the recursive crop inside bounds.
 - How the plan changed: No phase ordering changed, but sequence-policy fixtures should stay minimal and structural in `verify_repo.py`, while stronger map-persistence expectations should be tested only in purpose-built evaluation fixtures or real-session artifacts.
+
+### 2026-04-27
+
+- What was done: Added a deterministic placeholder matcher to the sequence evaluator and wired it into a new `recursive_placeholder_matcher` scenario, along with estimate-error and match-count reporting.
+- What we learned: Prior policy alone is no longer the only measurable question. The project can now study how recursive tracking behaves when updates are imperfect and sometimes fall back, without pretending a real image matcher already exists or introducing heavy dependencies too early.
+- How the plan changed: The next sequence experiments should compare the placeholder-matcher scenario against the oracle ceilings on real sessions. If the placeholder loop stays stable enough, the next implementation step should be a simple real image-matching baseline inside the same recursive interface rather than more prior-policy redesign.

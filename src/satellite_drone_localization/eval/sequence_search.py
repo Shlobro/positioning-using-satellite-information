@@ -12,15 +12,18 @@ from ..crop import DEFAULT_CROP_PADDING_FACTOR, meters_offset_between
 from ..geometry import build_replay_geometry_report
 from ..map_georeference import MapGeoreference
 from ..packet_replay import ReplaySession
+from .matcher_placeholder import build_truth_anchored_placeholder_match
 
 
 SCENARIO_SEED_ONLY = "seed_only"
 SCENARIO_ORACLE_PREVIOUS_TRUTH = "oracle_previous_truth"
 SCENARIO_RECURSIVE_ORACLE_ESTIMATE = "recursive_oracle_estimate"
+SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER = "recursive_placeholder_matcher"
 SCENARIO_NAMES = (
     SCENARIO_SEED_ONLY,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
+    SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
 )
 EARTH_RADIUS_M = 6_378_137.0
 
@@ -47,10 +50,19 @@ class SequenceFrameResult:
     target_x_in_crop_01: float
     target_y_in_crop_01: float
     contains_target: bool
+    estimate_source: str
+    estimated_latitude_deg: float
+    estimated_longitude_deg: float
+    estimated_confidence_radius_m: float
+    estimate_offset_east_m: float
+    estimate_offset_north_m: float
+    estimate_distance_m: float
     prior_pixel_x: float
     prior_pixel_y: float
     target_pixel_x: float
     target_pixel_y: float
+    estimate_pixel_x: float
+    estimate_pixel_y: float
     crop_min_x: float
     crop_min_y: float
     crop_max_x: float
@@ -67,12 +79,17 @@ class SequenceScenarioReport:
     description: str
     frame_count: int
     contained_frame_count: int
+    matched_frame_count: int
+    fallback_frame_count: int
     crop_inside_image_count: int
     first_target_miss_frame_index: int | None
     first_crop_outside_image_frame_index: int | None
     longest_inside_image_streak: int
     max_target_offset_m: float
     average_crop_side_m: float
+    mean_estimate_error_m: float
+    max_estimate_error_m: float
+    final_estimate_error_m: float
     frames: list[SequenceFrameResult]
 
 
@@ -149,6 +166,17 @@ def build_sequence_search_artifacts(
             base_search_radius_m=base_search_radius_m,
             measurement_update_radius_m=measurement_update_radius_m,
         ),
+        build_sequence_scenario_report(
+            scenario_name=SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
+            session=session,
+            georeference=georeference,
+            timestamps=timestamps,
+            first_timestamp=first_timestamp,
+            geometry_report=geometry_report.frames,
+            max_speed_mps=max_speed_mps,
+            base_search_radius_m=base_search_radius_m,
+            measurement_update_radius_m=measurement_update_radius_m,
+        ),
     ]
 
     return SequenceSearchArtifacts(
@@ -216,7 +244,10 @@ def build_sequence_scenario_report(
             delta_seconds = (timestamp - previous_timestamp).total_seconds()
             prior_latitude_deg = estimated_latitude_deg
             prior_longitude_deg = estimated_longitude_deg
-            prior_source = "previous_estimate_recursive_oracle"
+            if scenario_name == SCENARIO_RECURSIVE_ORACLE_ESTIMATE:
+                prior_source = "previous_estimate_recursive_oracle"
+            else:
+                prior_source = "previous_estimate_recursive_placeholder"
             prior_search_radius_m = estimated_confidence_radius_m + (max_speed_mps * delta_seconds)
         crop_side_m = max(geometry.normalized_crop_size_m, prior_search_radius_m * 2.0 * DEFAULT_CROP_PADDING_FACTOR)
         half_side_m = crop_side_m / 2.0
@@ -245,6 +276,35 @@ def build_sequence_scenario_report(
             and crop_max_x <= georeference.image_width_px
             and crop_max_y <= georeference.image_height_px
         )
+        (
+            estimate_source,
+            estimate_latitude_deg,
+            estimate_longitude_deg,
+            estimate_confidence_radius_m,
+        ) = build_estimate_update(
+            scenario_name=scenario_name,
+            frame_index=index,
+            frame=frame,
+            prior_latitude_deg=prior_latitude_deg,
+            prior_longitude_deg=prior_longitude_deg,
+            prior_search_radius_m=prior_search_radius_m,
+            crop_side_m=crop_side_m,
+            target_distance_m=math.hypot(target_offset_east_m, target_offset_north_m),
+            target_x_in_crop_01=target_x_in_crop_01,
+            target_y_in_crop_01=target_y_in_crop_01,
+            contains_target=contains_target,
+            crop_inside_image=crop_inside_image,
+            georeference=georeference,
+            measurement_update_radius_m=measurement_update_radius_m,
+        )
+        estimate_offset_east_m, estimate_offset_north_m = meters_offset_between(
+            origin_latitude_deg=frame.latitude_deg,
+            origin_longitude_deg=frame.longitude_deg,
+            target_latitude_deg=estimate_latitude_deg,
+            target_longitude_deg=estimate_longitude_deg,
+        )
+        estimate_distance_m = math.hypot(estimate_offset_east_m, estimate_offset_north_m)
+        estimate_pixel_x, estimate_pixel_y = georeference.latlon_to_pixel(estimate_latitude_deg, estimate_longitude_deg)
 
         results.append(
             SequenceFrameResult(
@@ -266,10 +326,19 @@ def build_sequence_scenario_report(
                 target_x_in_crop_01=target_x_in_crop_01,
                 target_y_in_crop_01=target_y_in_crop_01,
                 contains_target=contains_target,
+                estimate_source=estimate_source,
+                estimated_latitude_deg=estimate_latitude_deg,
+                estimated_longitude_deg=estimate_longitude_deg,
+                estimated_confidence_radius_m=estimate_confidence_radius_m,
+                estimate_offset_east_m=estimate_offset_east_m,
+                estimate_offset_north_m=estimate_offset_north_m,
+                estimate_distance_m=estimate_distance_m,
                 prior_pixel_x=prior_pixel_x,
                 prior_pixel_y=prior_pixel_y,
                 target_pixel_x=target_pixel_x,
                 target_pixel_y=target_pixel_y,
+                estimate_pixel_x=estimate_pixel_x,
+                estimate_pixel_y=estimate_pixel_y,
                 crop_min_x=crop_min_x,
                 crop_min_y=crop_min_y,
                 crop_max_x=crop_max_x,
@@ -279,29 +348,98 @@ def build_sequence_scenario_report(
             )
         )
 
-        if scenario_name == SCENARIO_RECURSIVE_ORACLE_ESTIMATE:
-            estimated_latitude_deg = frame.latitude_deg
-            estimated_longitude_deg = frame.longitude_deg
-            estimated_confidence_radius_m = measurement_update_radius_m
+        if scenario_name in (SCENARIO_RECURSIVE_ORACLE_ESTIMATE, SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER):
+            estimated_latitude_deg = estimate_latitude_deg
+            estimated_longitude_deg = estimate_longitude_deg
+            estimated_confidence_radius_m = estimate_confidence_radius_m
 
     first_target_miss_frame_index = next((index for index, frame in enumerate(results) if not frame.contains_target), None)
     first_crop_outside_image_frame_index = next(
         (index for index, frame in enumerate(results) if not frame.crop_inside_image),
         None,
     )
+    matched_frame_count = sum(1 for frame in results if is_match_source(frame.estimate_source))
+    fallback_frame_count = sum(1 for frame in results if is_fallback_source(frame.estimate_source))
 
     return SequenceScenarioReport(
         scenario_name=scenario_name,
         description=describe_scenario(scenario_name),
         frame_count=len(results),
         contained_frame_count=sum(1 for frame in results if frame.contains_target),
+        matched_frame_count=matched_frame_count,
+        fallback_frame_count=fallback_frame_count,
         crop_inside_image_count=sum(1 for frame in results if frame.crop_inside_image),
         first_target_miss_frame_index=first_target_miss_frame_index,
         first_crop_outside_image_frame_index=first_crop_outside_image_frame_index,
         longest_inside_image_streak=longest_true_streak(frame.crop_inside_image for frame in results),
         max_target_offset_m=max(frame.target_distance_m for frame in results),
         average_crop_side_m=sum(frame.crop_side_m for frame in results) / len(results),
+        mean_estimate_error_m=sum(frame.estimate_distance_m for frame in results) / len(results),
+        max_estimate_error_m=max(frame.estimate_distance_m for frame in results),
+        final_estimate_error_m=results[-1].estimate_distance_m,
         frames=results,
+    )
+
+
+def build_estimate_update(
+    *,
+    scenario_name: str,
+    frame_index: int,
+    frame,
+    prior_latitude_deg: float,
+    prior_longitude_deg: float,
+    prior_search_radius_m: float,
+    crop_side_m: float,
+    target_distance_m: float,
+    target_x_in_crop_01: float,
+    target_y_in_crop_01: float,
+    contains_target: bool,
+    crop_inside_image: bool,
+    georeference: MapGeoreference,
+    measurement_update_radius_m: float,
+) -> tuple[str, float, float, float]:
+    """Resolve the per-frame localization estimate for one scenario."""
+    if scenario_name == SCENARIO_SEED_ONLY:
+        return "prior_only_no_matcher", prior_latitude_deg, prior_longitude_deg, prior_search_radius_m
+
+    if scenario_name == SCENARIO_ORACLE_PREVIOUS_TRUTH:
+        return "oracle_current_truth_update", frame.latitude_deg, frame.longitude_deg, measurement_update_radius_m
+
+    if scenario_name == SCENARIO_RECURSIVE_ORACLE_ESTIMATE:
+        return "oracle_current_truth_update", frame.latitude_deg, frame.longitude_deg, measurement_update_radius_m
+
+    decision = build_truth_anchored_placeholder_match(
+        frame_index=frame_index,
+        heading_deg=frame.heading_deg,
+        target_distance_m=target_distance_m,
+        target_x_in_crop_01=target_x_in_crop_01,
+        target_y_in_crop_01=target_y_in_crop_01,
+        crop_side_m=crop_side_m,
+        contains_target=contains_target,
+        crop_inside_image=crop_inside_image,
+        georeference_max_residual_m=georeference.max_residual_m,
+        measurement_update_radius_m=measurement_update_radius_m,
+    )
+    if decision.accepted:
+        estimated_latitude_deg, estimated_longitude_deg = offset_latlon_by_meters(
+            frame.latitude_deg,
+            frame.longitude_deg,
+            east_m=decision.estimate_offset_east_m,
+            north_m=decision.estimate_offset_north_m,
+        )
+        return (
+            decision.estimate_source,
+            estimated_latitude_deg,
+            estimated_longitude_deg,
+            decision.confidence_radius_m,
+        )
+
+    fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
+    return (
+        decision.estimate_source,
+        prior_latitude_deg,
+        prior_longitude_deg,
+        fallback_confidence_radius_m,
     )
 
 
@@ -345,6 +483,8 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
                 "description": scenario.description,
                 "frame_count": scenario.frame_count,
                 "contained_frame_count": scenario.contained_frame_count,
+                "matched_frame_count": scenario.matched_frame_count,
+                "fallback_frame_count": scenario.fallback_frame_count,
                 "crop_inside_image_count": scenario.crop_inside_image_count,
                 "first_target_miss_frame_index": scenario.first_target_miss_frame_index,
                 "first_crop_outside_image_frame_index": scenario.first_crop_outside_image_frame_index,
@@ -353,6 +493,9 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
                 "map_coverage_ratio": scenario.crop_inside_image_count / scenario.frame_count,
                 "max_target_offset_m": scenario.max_target_offset_m,
                 "average_crop_side_m": scenario.average_crop_side_m,
+                "mean_estimate_error_m": scenario.mean_estimate_error_m,
+                "max_estimate_error_m": scenario.max_estimate_error_m,
+                "final_estimate_error_m": scenario.final_estimate_error_m,
                 "frames": [asdict(frame) for frame in scenario.frames],
             }
             for scenario in artifacts.scenarios
@@ -382,6 +525,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
         SCENARIO_SEED_ONLY: ("#c05621", "#7d4e57"),
         SCENARIO_ORACLE_PREVIOUS_TRUTH: ("#0f4c5c", "#8ecae6"),
         SCENARIO_RECURSIVE_ORACLE_ESTIMATE: ("#2b9348", "#b7e4c7"),
+        SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER: ("#6a4c93", "#d4b8f2"),
     }
     overlay_parts: list[str] = []
     for scenario in artifacts.scenarios:
@@ -402,7 +546,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts: SequenceSearchArtifac
     text_y = origin_y + map_height + 24.0
     for scenario in artifacts.scenarios:
         summary_lines.append(
-            f'<text x="40" y="{text_y:.0f}" font-family="monospace" font-size="12" fill="#213547">{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} map={scenario.crop_inside_image_count}/{scenario.frame_count} first_offmap={format_optional_index(scenario.first_crop_outside_image_frame_index)} streak={scenario.longest_inside_image_streak} max_offset={scenario.max_target_offset_m:.1f}m avg_crop={scenario.average_crop_side_m:.1f}m</text>'
+            f'<text x="40" y="{text_y:.0f}" font-family="monospace" font-size="12" fill="#213547">{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} map={scenario.crop_inside_image_count}/{scenario.frame_count} matches={scenario.matched_frame_count} err_mean={scenario.mean_estimate_error_m:.1f}m err_max={scenario.max_estimate_error_m:.1f}m first_offmap={format_optional_index(scenario.first_crop_outside_image_frame_index)} streak={scenario.longest_inside_image_streak} avg_crop={scenario.average_crop_side_m:.1f}m</text>'
         )
         text_y += 16.0
 
@@ -430,6 +574,11 @@ def describe_scenario(scenario_name: str) -> str:
             "Stateful prior loop that recenters on the previous accepted estimate "
             "(oracle stand-in uses hidden truth) and carries a configurable post-update confidence radius."
         )
+    if scenario_name == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER:
+        return (
+            "Stateful prior loop that feeds back a deterministic truth-anchored placeholder "
+            "measurement instead of a perfect oracle update, so drift can be measured before a real matcher exists."
+        )
     raise ValueError(f"unsupported scenario_name '{scenario_name}'")
 
 
@@ -451,6 +600,16 @@ def longest_true_streak(values) -> int:
         else:
             current = 0
     return longest
+
+
+def is_match_source(source: str) -> bool:
+    """Return whether the estimate source represents an accepted measurement update."""
+    return source in {"oracle_current_truth_update", "matched_placeholder_truth_anchored"}
+
+
+def is_fallback_source(source: str) -> bool:
+    """Return whether the estimate source represents a fallback instead of a measurement update."""
+    return source.startswith("fallback_") or source == "prior_only_no_matcher"
 
 
 def offset_latlon_by_meters(

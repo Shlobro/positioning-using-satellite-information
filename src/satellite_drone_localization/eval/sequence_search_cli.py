@@ -87,6 +87,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} "
             f"map={scenario.crop_inside_image_count}/{scenario.frame_count} "
+            f"matches={scenario.matched_frame_count} "
+            f"err_mean={scenario.mean_estimate_error_m:.2f}m "
             f"max_offset={scenario.max_target_offset_m:.2f}m"
         )
     print(f"Summary: {summary_path}")

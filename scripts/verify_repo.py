@@ -171,8 +171,8 @@ def verify_sequence_search() -> None:
                             "packet_type": "frame",
                             "timestamp_utc": "2026-04-20T10:15:30Z",
                             "image_name": "frame_0001.jpg",
-                            "latitude_deg": 31.0000,
-                            "longitude_deg": 35.0000,
+                            "latitude_deg": 30.9990,
+                            "longitude_deg": 35.0010,
                             "altitude_m": 20.0,
                             "heading_deg": 0.0,
                             "frame_width_px": 4000,
@@ -184,8 +184,8 @@ def verify_sequence_search() -> None:
                             "packet_type": "frame",
                             "timestamp_utc": "2026-04-20T10:15:31Z",
                             "image_name": "frame_0002.jpg",
-                            "latitude_deg": 31.0000,
-                            "longitude_deg": 35.0002,
+                            "latitude_deg": 30.9990,
+                            "longitude_deg": 35.0012,
                             "altitude_m": 20.0,
                             "heading_deg": 0.0,
                             "frame_width_px": 4000,
@@ -219,16 +219,19 @@ def verify_sequence_search() -> None:
             max_speed_mps=25.0,
             measurement_update_radius_m=5.0,
         )
-        assert len(artifacts.scenarios) == 3
+        assert len(artifacts.scenarios) == 4
         assert artifacts.scenarios[0].contained_frame_count == 2
         assert artifacts.scenarios[1].contained_frame_count == 2
         assert artifacts.scenarios[2].contained_frame_count == 2
+        assert artifacts.scenarios[3].contained_frame_count == 2
         assert artifacts.scenarios[1].frames[1].prior_source == "previous_frame_truth_oracle"
         assert artifacts.scenarios[1].frames[1].target_distance_m > 0.0
         assert artifacts.scenarios[2].frames[1].prior_source == "previous_estimate_recursive_oracle"
         assert artifacts.scenarios[2].frames[1].prior_search_radius_m == 30.0
-        assert artifacts.scenarios[2].longest_inside_image_streak >= 0
-        assert artifacts.scenarios[2].first_crop_outside_image_frame_index in (0, 1, None)
+        assert artifacts.scenarios[3].frames[1].prior_source == "previous_estimate_recursive_placeholder"
+        assert artifacts.scenarios[3].frames[1].estimate_source == "matched_placeholder_truth_anchored"
+        assert artifacts.scenarios[3].matched_frame_count == 2
+        assert artifacts.scenarios[3].max_estimate_error_m > 0.0
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 

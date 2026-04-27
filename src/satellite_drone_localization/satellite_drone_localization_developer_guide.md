@@ -21,6 +21,9 @@ Current responsibilities:
 - support an explicit recursive prior-update experiment where the next search
   center comes from the previous accepted estimate and carries forward a
   configurable confidence radius
+- support a deterministic truth-anchored placeholder matcher in the `eval/`
+  subpackage so recursive sequence updates can accumulate measurable estimation
+  error before a real image matcher is integrated
 
 Design notes:
 
@@ -40,3 +43,7 @@ Design notes:
   for an accepted localization result, but it now does so through an explicit
   state update loop instead of a one-off prior branch. This keeps the control
   logic measurable before a real matcher exists.
+- The placeholder matcher is intentionally not a real perception model. It uses
+  crop geometry plus calibrated-map residuals to synthesize bounded update
+  error and fallback cases, which is useful for measuring control-loop behavior
+  without introducing external image-processing dependencies yet.

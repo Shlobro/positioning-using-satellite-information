@@ -161,3 +161,9 @@
 - intent: Remove the remaining recursive verifier streak assumption after the next local run showed the synthetic map can keep every recursive crop off-image while the policy logic itself still behaves correctly.
 - linked run_ids: none
 - actual result: The recursive verifier now checks only structural policy outputs for this fixture: correct prior source, expected carried radius, truth containment, and valid bookkeeping fields. It no longer assumes any positive on-image streak on the tiny synthetic map.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/matcher_placeholder.py`, `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/sequence_search_cli.py`, `src/satellite_drone_localization/eval/__init__.py`, `scripts/verify_repo.py`, `tests/test_sequence_search.py`, `tests/test_matcher_placeholder.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add the first deterministic matcher placeholder so the recursive prior loop can be measured with non-zero localization error and fallback behavior before a real image matcher is integrated.
+- linked run_ids: none
+- actual result: The sequence evaluator now reports a fourth scenario, `recursive_placeholder_matcher`, which feeds back a truth-anchored deterministic placeholder measurement instead of a perfect oracle update. Summary artifacts now report match counts plus estimate-error metrics, and deterministic tests plus repo verification cover the new scenario.
