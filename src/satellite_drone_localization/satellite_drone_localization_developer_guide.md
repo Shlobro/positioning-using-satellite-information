@@ -54,3 +54,7 @@ Design notes:
   grayscale edge images, north-up frame rotation, projected footprint sizing,
   and exhaustive crop-local template search. It is a sanity-check baseline, not
   the intended production matcher.
+- The image baseline now rejects very low-texture templates and uses a small
+  prior-center ranking bias when visual scores are close. This makes recursive
+  feedback less likely to jump far from the current prior on ambiguous crops,
+  but it remains a simple diagnostic baseline.

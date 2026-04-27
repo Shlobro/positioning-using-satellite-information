@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
 
 
 COMPARISON_SIZE_PX = (32, 32)
+MIN_ACCEPTED_MATCH_SCORE = 0.70
+MIN_TEMPLATE_TEXTURE_STDDEV = 4.0
+CENTER_DISTANCE_SCORE_PENALTY = 0.12
 
 
 @dataclass(frozen=True)
@@ -92,7 +96,7 @@ class ImageBaselineMatcher:
             )
 
         try:
-            frame_template = _load_frame_template(
+            frame_template, frame_texture_stddev = _load_frame_template(
                 frame_image_path=frame_image_path,
                 normalization_rotation_deg=normalization_rotation_deg,
                 width_px=template_width_px,
@@ -109,9 +113,21 @@ class ImageBaselineMatcher:
                 runner_up_match_score=None,
             )
 
+        if frame_texture_stddev < MIN_TEMPLATE_TEXTURE_STDDEV:
+            return ImageBaselineMatchDecision(
+                accepted=False,
+                estimate_source="fallback_image_low_texture",
+                confidence_radius_m=measurement_update_radius_m,
+                estimated_pixel_x=0.0,
+                estimated_pixel_y=0.0,
+                match_score=None,
+                runner_up_match_score=None,
+            )
+
         map_crop = self._map_edge_image.crop((search_left, search_top, search_right, search_bottom))
-        best_score = -1.0
-        runner_up_score = -1.0
+        best_rank_score = -1.0
+        best_visual_score = -1.0
+        runner_up_visual_score = -1.0
         best_position = None
 
         step_x = max(1, min(8, template_width_px // 6 or 1))
@@ -131,12 +147,21 @@ class ImageBaselineMatcher:
                 )
                 candidate = _prepare_match_image(candidate)
                 score = _score_images(frame_template, candidate)
-                if score > best_score:
-                    runner_up_score = best_score
-                    best_score = score
+                rank_score = score - _center_distance_penalty(
+                    local_x=local_x,
+                    local_y=local_y,
+                    template_width_px=template_width_px,
+                    template_height_px=template_height_px,
+                    search_width_px=search_width_px,
+                    search_height_px=search_height_px,
+                )
+                if rank_score > best_rank_score:
+                    runner_up_visual_score = best_visual_score
+                    best_rank_score = rank_score
+                    best_visual_score = score
                     best_position = (local_x, local_y)
-                elif score > runner_up_score:
-                    runner_up_score = score
+                elif score > runner_up_visual_score:
+                    runner_up_visual_score = score
 
         if best_position is None:
             return ImageBaselineMatchDecision(
@@ -149,13 +174,25 @@ class ImageBaselineMatcher:
                 runner_up_match_score=None,
             )
 
+        runner_up_score_out = runner_up_visual_score if runner_up_visual_score >= 0.0 else None
+        if not _is_match_acceptable(best_score=best_visual_score):
+            return ImageBaselineMatchDecision(
+                accepted=False,
+                estimate_source="fallback_image_ambiguous_match",
+                confidence_radius_m=measurement_update_radius_m,
+                estimated_pixel_x=0.0,
+                estimated_pixel_y=0.0,
+                match_score=best_visual_score,
+                runner_up_match_score=runner_up_score_out,
+            )
+
         best_local_x, best_local_y = best_position
         center_x = search_left + best_local_x + (template_width_px / 2.0)
         center_y = search_top + best_local_y + (template_height_px / 2.0)
         confidence_radius_m = _derive_confidence_radius_m(
             measurement_update_radius_m=measurement_update_radius_m,
             georeference_max_residual_m=georeference_max_residual_m,
-            best_score=best_score,
+            best_score=best_visual_score,
         )
         return ImageBaselineMatchDecision(
             accepted=True,
@@ -163,8 +200,8 @@ class ImageBaselineMatcher:
             confidence_radius_m=confidence_radius_m,
             estimated_pixel_x=center_x,
             estimated_pixel_y=center_y,
-            match_score=best_score,
-            runner_up_match_score=runner_up_score if runner_up_score >= 0.0 else None,
+            match_score=best_visual_score,
+            runner_up_match_score=runner_up_score_out,
         )
 
 
@@ -189,7 +226,7 @@ def _load_frame_template(
     normalization_rotation_deg: float,
     width_px: int,
     height_px: int,
-) -> Image.Image:
+) -> tuple[Image.Image, float]:
     with Image.open(frame_image_path) as image:
         grayscale = image.convert("L")
         grayscale = ImageOps.autocontrast(grayscale)
@@ -208,8 +245,9 @@ def _load_frame_template(
         bbox = mask.getbbox()
         if bbox is not None:
             rotated = rotated.crop(bbox)
+        texture_stddev = _image_texture_stddev(rotated)
         resized = rotated.resize((width_px, height_px), resample=Image.Resampling.BILINEAR)
-        return _prepare_match_image(resized)
+        return _prepare_match_image(resized), texture_stddev
 
 
 def _prepare_match_image(image: Image.Image) -> Image.Image:
@@ -222,6 +260,34 @@ def _score_images(left: Image.Image, right: Image.Image) -> float:
     diff = ImageChops.difference(left, right)
     mean_diff = ImageStat.Stat(diff).mean[0]
     return max(0.0, 1.0 - (mean_diff / 255.0))
+
+
+def _center_distance_penalty(
+    *,
+    local_x: int,
+    local_y: int,
+    template_width_px: int,
+    template_height_px: int,
+    search_width_px: int,
+    search_height_px: int,
+) -> float:
+    candidate_center_x = local_x + (template_width_px / 2.0)
+    candidate_center_y = local_y + (template_height_px / 2.0)
+    search_center_x = search_width_px / 2.0
+    search_center_y = search_height_px / 2.0
+    max_distance = math.hypot(search_center_x, search_center_y)
+    if max_distance == 0.0:
+        return 0.0
+    distance = math.hypot(candidate_center_x - search_center_x, candidate_center_y - search_center_y)
+    return CENTER_DISTANCE_SCORE_PENALTY * min(1.0, distance / max_distance)
+
+
+def _image_texture_stddev(image: Image.Image) -> float:
+    return ImageStat.Stat(image).stddev[0]
+
+
+def _is_match_acceptable(*, best_score: float) -> bool:
+    return best_score >= MIN_ACCEPTED_MATCH_SCORE
 
 
 def _derive_confidence_radius_m(

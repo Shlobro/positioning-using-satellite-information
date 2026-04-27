@@ -173,3 +173,15 @@
 - intent: Add the first simple real image-matching baseline so the recursive sequence loop can be measured with actual pixel evidence inside the calibrated GIS crop.
 - linked run_ids: none
 - actual result: The sequence evaluator now reports a fifth scenario, `recursive_image_baseline_matcher`, which rotates each frame north-up, projects it to the expected footprint size, and runs a grayscale edge-template search inside the calibrated GIS crop. Summary artifacts now include match-score diagnostics, and deterministic synthetic-image tests plus repo verification cover the new scenario. On the 2026-04-27 real session, this first image baseline stayed on-map for 13 of 92 frames, matched 13 frames, and reached `44.93 m` mean estimate error, which is good enough to prove the interface but not good enough to replace the placeholder as the working tracker baseline.
+
+- owner: Codex
+- files changed: `AGENTS.md`, `root_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Make the repository verification rule unambiguous after direct in-session pytest execution hung again during the image-baseline improvement slice.
+- linked run_ids: none
+- actual result: Agent instructions now explicitly forbid `pytest`, `python -m pytest`, and targeted pytest commands from agent sessions. The user-run `scripts/run_pytest_isolation.bat` workflow remains the authoritative verification path, and the user-confirmed local targeted test result was `3 passed in 0.23s`.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/matcher_image_baseline.py`, `tests/test_matcher_image_baseline.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Improve the first real image baseline so ambiguous visual evidence is less likely to poison the recursive prior.
+- linked run_ids: none
+- actual result: The image baseline now rejects low-texture templates and ranks candidate matches with a small prior-center penalty when visual scores are close. On `DEV-SESSION-20260427T112451Z`, the `recursive_image_baseline_matcher` scenario improved from `map=13/92`, `err_mean=44.93m`, and `max_offset=62.82m` to `map=92/92`, `err_mean=17.34m`, and `max_offset=56.61m`. The result is materially better but still not strong enough to replace the placeholder or oracle ceilings.

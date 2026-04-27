@@ -93,3 +93,30 @@ def test_image_baseline_matcher_falls_back_for_off_map_crop(tmp_path: Path) -> N
 
     assert decision.accepted is False
     assert decision.estimate_source == "fallback_image_crop_outside_map"
+
+
+def test_image_baseline_matcher_rejects_low_texture_match(tmp_path: Path) -> None:
+    map_path = tmp_path / "map.png"
+    frame_path = tmp_path / "frame.png"
+    Image.new("L", (200, 200), color=128).save(map_path)
+    Image.new("L", (192, 108), color=128).save(frame_path)
+
+    matcher = ImageBaselineMatcher(map_path)
+    decision = matcher.match_frame(
+        frame_image_path=frame_path,
+        normalization_rotation_deg=0.0,
+        ground_width_px=60.0,
+        ground_height_px=34.0,
+        crop_min_x=60.0,
+        crop_min_y=70.0,
+        crop_max_x=160.0,
+        crop_max_y=130.0,
+        crop_inside_image=True,
+        measurement_update_radius_m=5.0,
+        georeference_max_residual_m=0.25,
+    )
+
+    assert decision.accepted is False
+    assert decision.estimate_source == "fallback_image_low_texture"
+    assert decision.match_score is None
+    assert decision.runner_up_match_score is None

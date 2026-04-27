@@ -21,6 +21,8 @@ Current scope:
 - matcher-image-baseline tests verify the first simple real pixel matcher can
   recover a synthetic crop center from a synthetic GIS image and fall back when
   the search crop leaves the image.
+- matcher-image-baseline tests also verify the low-texture rejection path so a
+  blank or uninformative crop does not become a confident recursive update.
 
 Guidelines:
 

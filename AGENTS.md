@@ -7,7 +7,8 @@
 - keep system temp directories (for example `%TEMP%/`) ignored via `.gitignore`.
 - always ask whether a commit message is good before committing.
 - `.md` files are ignored when counting files in a folder. keep each folder at 10 code files or fewer where practical, and create a new folder before feature growth makes a folder hard to scan.
-- always verify code changes by running the relevant checks, linting and tests.
+- always verify code changes through this repository's approved verification workflow.
+- never run `pytest`, `python -m pytest`, or targeted pytest commands from an agent session in this repository. direct pytest execution repeatedly hangs under the agent wrapper and must be treated as forbidden, even for a single test file.
 - for this repository, always ask the user to run `scripts/run_pytest_isolation.bat` locally and paste the output back. do not treat agent-run verification as the default path for this repo.
 - if agent-run verification commands such as `python scripts/verify_repo.py` or `scripts/run_pytest_isolation.bat` get stuck in-session, stop retrying and ask the user to run them locally and paste the output.
 - avoid in-session `python ...` verification runs once the wrapper shows sticky behavior; prefer asking the user to run the equivalent local command and paste the output.

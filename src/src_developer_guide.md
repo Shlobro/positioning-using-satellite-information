@@ -21,6 +21,9 @@ Current scope:
 - `satellite_drone_localization/eval/` now also holds a simple Pillow-backed
   image matcher baseline so the recursive loop can be measured with real pixel
   evidence before heavier matchers are introduced.
+- `satellite_drone_localization/eval/` now also applies first-pass acceptance
+  safeguards to that image baseline, including low-texture fallback and
+  prior-centered candidate ranking.
 
 Guidelines:
 

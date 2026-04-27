@@ -30,6 +30,10 @@ Current scope:
   replaces the placeholder update with a simple grayscale template match inside
   the calibrated GIS crop, so real pixel evidence can be compared against the
   oracle and placeholder ceilings.
+- The image baseline now applies a low-texture fallback and a prior-center
+  ranking bias before accepting a template match. This keeps ambiguous visual
+  evidence from jumping as aggressively across the crop while preserving the
+  same scenario and artifact schema.
 
 Guidelines:
 
@@ -47,3 +51,6 @@ Guidelines:
 - Keep image baselines explicit about their simplicity. Record match-score
   diagnostics so weak image evidence is visible instead of silently treated as
   oracle-quality localization.
+- When adding image-matcher gates, measure both error and map persistence on a
+  real replay. A stricter gate is only useful if it improves recursive behavior
+  or makes failure more honest in the artifact summaries.

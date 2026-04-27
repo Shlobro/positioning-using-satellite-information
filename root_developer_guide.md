@@ -25,7 +25,7 @@ Current verification rule:
 - For this project, the required verification entry point is `scripts/run_pytest_isolation.bat`, and it should be run by the user locally.
 - The batch script delegates bounded checks to `scripts/verify_repo.py`.
 - The batch script now pauses before closing so the user can copy the output directly from the terminal window.
-- Direct `pytest` invocation from the agent session is not considered a valid default verification path here.
+- Direct `pytest`, `python -m pytest`, or targeted pytest invocation from the agent session is forbidden here because it repeatedly hangs under the agent wrapper.
 - Long-running in-session verification commands such as `python scripts/verify_repo.py` may also stall under the agent wrapper, so the user-run local path remains the authoritative verification route.
 - The verification script now checks nine vertical slices: Phase 0 smoke artifacts, Phase 1 replay schema parsing, Phase 1 geometry-report generation, Phase 1 crop-plan generation, the combined Phase 1 replay pipeline, the minimal Phase 1 live receiver stub, the main-package map georeference transform, the sequence-search evaluator, and the standalone map calibrator tool tests.
 - The sequence-search slice now includes the first explicit recursive

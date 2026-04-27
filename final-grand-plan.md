@@ -844,3 +844,15 @@ The project is only done when all of the following are true:
 - What was done: Added the first simple real image baseline to the sequence evaluator in a new `recursive_image_baseline_matcher` scenario. The baseline uses Pillow-backed grayscale edge images, rotates the drone frame north-up, projects it to the expected footprint size, and exhaustively template-matches it inside the calibrated GIS crop.
 - What we learned: The interface works, but the first real image baseline is much weaker than the placeholder loop on the `DEV-SESSION-20260427T112451Z` session. It stayed on-map for only 13 of 92 frames, matched 13 frames, and reached `44.93 m` mean estimate error even though accepted matches showed a superficially decent `0.79` mean score. That means the current score is not yet a trustworthy confidence signal, and the crop-local raster matcher is too brittle to serve as the working measurement update.
 - How the plan changed: The next step is no longer “introduce any real matcher.” That is now done. The next step should improve this crop-local image baseline itself, most likely by tightening acceptance logic and/or improving the match representation, before moving on to heavier neural matchers.
+
+### 2026-04-27
+
+- What was done: Tightened the repository verification instructions after direct in-session pytest execution hung again during the image-baseline improvement work.
+- What we learned: Even targeted `python -m pytest tests\...` commands are not safe under the agent wrapper in this workspace. The user can run the same tests locally successfully, as shown by the pasted `3 passed in 0.23s` result.
+- How the plan changed: Verification discipline is now stricter: agents must not run direct pytest commands in this repository. Agents should rely on user-run `scripts/run_pytest_isolation.bat` output, plus user-run targeted test output when the user chooses to provide it.
+
+### 2026-04-27
+
+- What was done: Improved the simple image baseline with low-texture rejection and a prior-centered ranking bias for close visual matches.
+- What we learned: On `DEV-SESSION-20260427T112451Z`, the image-baseline recursive scenario improved from `map=13/92` and `err_mean=44.93m` to `map=92/92` and `err_mean=17.34m`. The center bias made the tracker much less destructive to map persistence, but the remaining error is still far above the placeholder and oracle paths.
+- How the plan changed: The crop-local image baseline is now useful as a diagnostic comparison, but the next matcher work should focus on better image representation or a stronger classical baseline rather than more prior-policy changes.
