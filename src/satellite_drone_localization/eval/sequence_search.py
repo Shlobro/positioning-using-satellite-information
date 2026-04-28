@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime
 import json
@@ -81,6 +82,7 @@ class SequenceFrameResult:
     estimate_pixel_y: float
     match_score: float | None
     runner_up_match_score: float | None
+    matcher_diagnostics: dict[str, float | int] | None
     crop_min_x: float
     crop_min_y: float
     crop_max_x: float
@@ -99,6 +101,8 @@ class SequenceScenarioReport:
     contained_frame_count: int
     matched_frame_count: int
     fallback_frame_count: int
+    estimate_source_counts: dict[str, int]
+    fallback_source_counts: dict[str, int]
     crop_inside_image_count: int
     map_constrained_frame_count: int
     map_limited_frame_count: int
@@ -408,6 +412,7 @@ def build_sequence_scenario_report(
             estimate_confidence_radius_m,
             match_score,
             runner_up_match_score,
+            matcher_diagnostics,
         ) = build_estimate_update(
             scenario_name=scenario_name,
             frame_index=index,
@@ -478,6 +483,7 @@ def build_sequence_scenario_report(
                 estimate_pixel_y=estimate_pixel_y,
                 match_score=match_score,
                 runner_up_match_score=runner_up_match_score,
+                matcher_diagnostics=matcher_diagnostics,
                 search_center_was_map_constrained=search_center_was_map_constrained,
                 crop_was_map_limited=crop_was_map_limited,
                 crop_min_x=crop_min_x,
@@ -510,6 +516,7 @@ def build_sequence_scenario_report(
     matched_frame_count = sum(1 for frame in results if is_match_source(frame.estimate_source))
     fallback_frame_count = sum(1 for frame in results if is_fallback_source(frame.estimate_source))
     match_scores = [frame.match_score for frame in results if frame.match_score is not None]
+    estimate_source_counts = dict(Counter(frame.estimate_source for frame in results))
 
     return SequenceScenarioReport(
         scenario_name=scenario_name,
@@ -518,6 +525,12 @@ def build_sequence_scenario_report(
         contained_frame_count=sum(1 for frame in results if frame.contains_target),
         matched_frame_count=matched_frame_count,
         fallback_frame_count=fallback_frame_count,
+        estimate_source_counts=estimate_source_counts,
+        fallback_source_counts={
+            source: count
+            for source, count in estimate_source_counts.items()
+            if is_fallback_source(source)
+        },
         crop_inside_image_count=sum(1 for frame in results if frame.crop_inside_image),
         map_constrained_frame_count=sum(1 for frame in results if frame.search_center_was_map_constrained),
         map_limited_frame_count=sum(1 for frame in results if frame.crop_was_map_limited),
@@ -561,10 +574,10 @@ def build_estimate_update(
     crop_min_y: float,
     crop_max_x: float,
     crop_max_y: float,
-) -> tuple[str, float, float, float, float | None, float | None]:
+) -> tuple[str, float, float, float, float | None, float | None, dict[str, float | int] | None]:
     """Resolve the per-frame localization estimate for one scenario."""
     if scenario_name == SCENARIO_SEED_ONLY:
-        return "prior_only_no_matcher", prior_latitude_deg, prior_longitude_deg, prior_search_radius_m, None, None
+        return "prior_only_no_matcher", prior_latitude_deg, prior_longitude_deg, prior_search_radius_m, None, None, None
 
     if scenario_name == SCENARIO_ORACLE_PREVIOUS_TRUTH:
         return (
@@ -572,6 +585,7 @@ def build_estimate_update(
             frame.latitude_deg,
             frame.longitude_deg,
             measurement_update_radius_m,
+            None,
             None,
             None,
         )
@@ -582,6 +596,7 @@ def build_estimate_update(
             frame.latitude_deg,
             frame.longitude_deg,
             measurement_update_radius_m,
+            None,
             None,
             None,
         )
@@ -613,6 +628,7 @@ def build_estimate_update(
                 decision.confidence_radius_m,
                 None,
                 None,
+                None,
             )
 
         fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
@@ -621,6 +637,7 @@ def build_estimate_update(
             fallback_latitude_deg,
             fallback_longitude_deg,
             fallback_confidence_radius_m,
+            None,
             None,
             None,
         )
@@ -698,6 +715,7 @@ def build_estimate_update(
                     fallback_confidence_radius_m,
                     decision.match_score,
                     decision.runner_up_match_score,
+                    getattr(decision, "diagnostics", None),
                 )
         return (
             decision.estimate_source,
@@ -706,6 +724,7 @@ def build_estimate_update(
             decision.confidence_radius_m,
             decision.match_score,
             decision.runner_up_match_score,
+            getattr(decision, "diagnostics", None),
         )
 
     fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
@@ -716,6 +735,7 @@ def build_estimate_update(
         fallback_confidence_radius_m,
         decision.match_score,
         decision.runner_up_match_score,
+        getattr(decision, "diagnostics", None),
     )
 
 
@@ -762,6 +782,8 @@ def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts
                 "contained_frame_count": scenario.contained_frame_count,
                 "matched_frame_count": scenario.matched_frame_count,
                 "fallback_frame_count": scenario.fallback_frame_count,
+                "estimate_source_counts": scenario.estimate_source_counts,
+                "fallback_source_counts": scenario.fallback_source_counts,
                 "crop_inside_image_count": scenario.crop_inside_image_count,
                 "map_constrained_frame_count": scenario.map_constrained_frame_count,
                 "map_limited_frame_count": scenario.map_limited_frame_count,

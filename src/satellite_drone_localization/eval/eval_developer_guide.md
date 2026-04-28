@@ -65,11 +65,18 @@ Current scope:
   explicit fallback sources (`fallback_roma_poor_spatial_coverage` or
   `fallback_roma_implausible_scale`) so false-positive rejection stays
   measurable in replay summaries.
+- RoMa decisions now expose the gate values that drove acceptance or late-stage
+  fallback, including sampled matches, inlier count and ratio, certainty,
+  reprojection error, spatial coverage, affine scale, and estimated center when
+  available.
 - When RoMa is enabled, the evaluator also reports
   `recursive_roma_map_constrained_matcher`, which applies the same
   map-limited crop and motion-envelope guard used by the constrained raster
   scenario. This keeps boundary-policy results separate from the original RoMa
   benchmark.
+- Each sequence scenario now also reports `estimate_source_counts` and
+  `fallback_source_counts` in the JSON artifact, so replay comparisons can be
+  tuned from aggregate failure modes before inspecting individual frames.
 
 Guidelines:
 

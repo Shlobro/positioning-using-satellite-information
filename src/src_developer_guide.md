@@ -46,6 +46,10 @@ Current scope:
 - The optional RoMa matcher now rejects geometrically weak dense matches when
   the fitted footprint scale is implausible or the inlier support covers only a
   tiny patch of the frame.
+- RoMa-backed sequence artifacts now preserve per-frame matcher diagnostics and
+  per-scenario source-count breakdowns, so threshold tuning can compare error,
+  accepted updates, and exact fallback reasons without re-reading frame rows by
+  hand.
 - `satellite_drone_localization/eval/` now also holds sequence policy helpers
   for map-constrained search crops, so boundary-aware bootstrap experiments do
   not bloat the main sequence evaluator.

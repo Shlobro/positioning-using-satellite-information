@@ -36,6 +36,7 @@ class RoMaMatchDecision:
     estimated_pixel_y: float
     match_score: float | None
     runner_up_match_score: float | None
+    diagnostics: dict[str, float | int] | None
 
 
 class RoMaBackend(Protocol):
@@ -124,7 +125,11 @@ class RoMaRegressionMatcher:
         sampled_matches, sampled_certainty = self._backend.sample(matches, certainty, num=self.sample_count)
         match_count = int(sampled_matches.shape[0])
         if match_count < MIN_SAMPLED_MATCHES:
-            return _build_fallback("fallback_roma_insufficient_matches", measurement_update_radius_m)
+            return _build_fallback(
+                "fallback_roma_insufficient_matches",
+                measurement_update_radius_m,
+                {"sampled_match_count": match_count},
+            )
 
         frame_points, crop_points = self._backend.to_pixel_coordinates(
             sampled_matches,
@@ -152,42 +157,53 @@ class RoMaRegressionMatcher:
         inlier_flags = inlier_mask.ravel().astype(bool)
         inlier_count = int(inlier_flags.sum())
         inlier_ratio = inlier_count / match_count
+        diagnostics: dict[str, float | int] = {
+            "sampled_match_count": match_count,
+            "inlier_count": inlier_count,
+            "inlier_ratio": inlier_ratio,
+        }
         if inlier_count < MIN_INLIER_COUNT or inlier_ratio < MIN_INLIER_RATIO:
-            return _build_fallback("fallback_roma_weak_inlier_support", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_weak_inlier_support", measurement_update_radius_m, diagnostics)
 
         inlier_certainty = certainty_np[inlier_flags]
         mean_inlier_certainty = float(inlier_certainty.mean())
+        diagnostics["mean_inlier_certainty"] = mean_inlier_certainty
         if mean_inlier_certainty < MIN_INLIER_MEAN_CERTAINTY:
-            return _build_fallback("fallback_roma_low_certainty", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_low_certainty", measurement_update_radius_m, diagnostics)
 
         inlier_frame_points = frame_points_np[inlier_flags]
         inlier_crop_points = crop_points_np[inlier_flags]
         reprojected_points = cv2.transform(inlier_frame_points.reshape(-1, 1, 2), affine_matrix).reshape(-1, 2)
         reprojection_errors = np.linalg.norm(reprojected_points - inlier_crop_points, axis=1)
         mean_reprojection_error = float(reprojection_errors.mean())
+        diagnostics["mean_reprojection_error_px"] = mean_reprojection_error
         if mean_reprojection_error > MAX_INLIER_MEAN_REPROJECTION_ERROR_PX:
-            return _build_fallback("fallback_roma_high_reprojection_error", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_high_reprojection_error", measurement_update_radius_m, diagnostics)
 
         spatial_coverage = _estimate_spatial_coverage(
             inlier_frame_points=inlier_frame_points,
             template_width_px=template_width_px,
             template_height_px=template_height_px,
         )
+        diagnostics["inlier_spatial_coverage"] = spatial_coverage
         if spatial_coverage < MIN_INLIER_SPATIAL_COVERAGE:
-            return _build_fallback("fallback_roma_poor_spatial_coverage", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_poor_spatial_coverage", measurement_update_radius_m, diagnostics)
 
         affine_scale = _estimate_affine_scale(affine_matrix)
+        diagnostics["affine_scale"] = affine_scale
         if affine_scale < MIN_AFFINE_SCALE or affine_scale > MAX_AFFINE_SCALE:
-            return _build_fallback("fallback_roma_implausible_scale", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_implausible_scale", measurement_update_radius_m, diagnostics)
 
         center_point = np.array([[[template_width_px / 2.0, template_height_px / 2.0]]], dtype=np.float32)
         transformed_center = cv2.transform(center_point, affine_matrix)[0][0]
         center_x = float(search_left + transformed_center[0])
         center_y = float(search_top + transformed_center[1])
+        diagnostics["estimated_center_x_px"] = center_x
+        diagnostics["estimated_center_y_px"] = center_y
         if center_x < search_left or center_y < search_top:
-            return _build_fallback("fallback_roma_center_outside_crop", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_center_outside_crop", measurement_update_radius_m, diagnostics)
         if center_x > search_right or center_y > search_bottom:
-            return _build_fallback("fallback_roma_center_outside_crop", measurement_update_radius_m)
+            return _build_fallback("fallback_roma_center_outside_crop", measurement_update_radius_m, diagnostics)
 
         match_score = _score_match(
             inlier_ratio=inlier_ratio,
@@ -207,6 +223,7 @@ class RoMaRegressionMatcher:
             estimated_pixel_y=center_y,
             match_score=match_score,
             runner_up_match_score=None,
+            diagnostics=diagnostics,
         )
 
 
@@ -333,7 +350,11 @@ def _derive_confidence_radius_m(
     return min(max(floor_radius_m, confidence_radius_m), measurement_update_radius_m)
 
 
-def _build_fallback(estimate_source: str, confidence_radius_m: float) -> RoMaMatchDecision:
+def _build_fallback(
+    estimate_source: str,
+    confidence_radius_m: float,
+    diagnostics: dict[str, float | int] | None = None,
+) -> RoMaMatchDecision:
     return RoMaMatchDecision(
         accepted=False,
         estimate_source=estimate_source,
@@ -342,4 +363,5 @@ def _build_fallback(estimate_source: str, confidence_radius_m: float) -> RoMaMat
         estimated_pixel_y=0.0,
         match_score=None,
         runner_up_match_score=None,
+        diagnostics=diagnostics,
     )

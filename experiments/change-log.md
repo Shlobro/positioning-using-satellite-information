@@ -257,3 +257,9 @@
 - intent: Add the first RoMa false-positive rejection slice after the map-constrained benchmark showed many accepted neural updates but still high mean error.
 - linked run_ids: manual `sequence-search-roma-gated`
 - actual result: RoMa acceptance now rejects dense-match transforms whose inlier support covers only a small patch of the frame or whose fitted affine scale is implausible relative to the predicted footprint. Deterministic fake-backend tests cover both new fallback reasons. On `DEV-SESSION-20260427T112451Z` with seeded `roma_outdoor` on CUDA, `recursive_roma_map_constrained_matcher` accepted `59/92` updates and lowered mean error from the previous constrained-RoMa `14.72m` to `5.25m` while keeping `92/92` crops on-map. The ungated recursive RoMa scenario now accepts `0/92`, so the useful path is the map-constrained RoMa policy plus stricter acceptance, not unconstrained neural feedback.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/matcher_roma.py`, `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/sequence_search_cli.py`, `tests/test_matcher_roma.py`, `tests/test_sequence_search.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Expose RoMa fallback and gate diagnostics in sequence artifacts before tuning acceptance thresholds.
+- linked run_ids: none yet
+- actual result: RoMa decisions now carry sampled-match, inlier, certainty, reprojection, spatial-coverage, affine-scale, and estimated-center diagnostics when those stages are reached. Sequence scenario summaries now include `estimate_source_counts` and `fallback_source_counts`, frame rows include optional `matcher_diagnostics`, and the CLI prints fallback-source breakdowns when present. Syntax compilation passed; required local batch verification still needs to be run by the user.

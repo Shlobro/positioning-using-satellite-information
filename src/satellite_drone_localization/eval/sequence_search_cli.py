@@ -112,6 +112,11 @@ def main(argv: list[str] | None = None) -> int:
             if scenario.mean_match_score is not None
             else ""
         )
+        fallback_text = (
+            f" fallbacks={scenario.fallback_source_counts}"
+            if scenario.fallback_source_counts
+            else ""
+        )
         print(
             f"{scenario.scenario_name}: contains={scenario.contained_frame_count}/{scenario.frame_count} "
             f"map={scenario.crop_inside_image_count}/{scenario.frame_count} "
@@ -121,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             f"err_mean={scenario.mean_estimate_error_m:.2f}m"
             f"{score_text} "
             f"max_offset={scenario.max_target_offset_m:.2f}m"
+            f"{fallback_text}"
         )
     print(f"Summary: {summary_path}")
     print(f"Debug SVG: {svg_path}")

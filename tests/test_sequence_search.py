@@ -277,6 +277,10 @@ def test_build_sequence_search_artifacts_adds_optional_roma_scenario() -> None:
         assert artifacts.scenarios[-2].frames[1].estimate_source == "matched_roma"
         assert artifacts.scenarios[-2].matched_frame_count == 2
         assert artifacts.scenarios[-2].mean_match_score is not None
+        assert artifacts.scenarios[-2].estimate_source_counts["matched_roma"] == 2
+        assert artifacts.scenarios[-2].fallback_source_counts == {}
+        assert artifacts.scenarios[-2].frames[1].matcher_diagnostics is not None
+        assert artifacts.scenarios[-2].frames[1].matcher_diagnostics["inlier_count"] >= 48
         assert artifacts.scenarios[-1].frames[1].prior_source == "previous_estimate_recursive_roma_map_constrained"
         assert artifacts.scenarios[-1].frames[1].estimate_source == "matched_roma"
         assert artifacts.scenarios[-1].matched_frame_count == 2
@@ -342,6 +346,8 @@ def test_map_constrained_roma_scenario_rejects_updates_outside_motion_gate() -> 
         assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
         assert artifacts.scenarios[-1].frames[0].estimate_source == "fallback_map_constrained_update_outside_motion_gate"
         assert artifacts.scenarios[-1].matched_frame_count == 0
+        assert artifacts.scenarios[-1].fallback_source_counts["fallback_map_constrained_update_outside_motion_gate"] == 2
+        assert artifacts.scenarios[-1].frames[0].matcher_diagnostics is not None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -455,6 +461,9 @@ def test_sequence_search_cli_writes_summary_and_svg() -> None:
         assert summary["scenarios"][6]["scenario_name"] == SCENARIO_RECURSIVE_CLASSICAL_MATCHER
         assert "map_constrained_frame_count" in summary["scenarios"][5]
         assert "map_limited_frame_count" in summary["scenarios"][5]
+        assert summary["scenarios"][6]["fallback_source_counts"]["fallback_classical_insufficient_features"] == 2
+        assert summary["scenarios"][4]["estimate_source_counts"]["matched_image_baseline"] == 2
+        assert summary["scenarios"][4]["frames"][0]["matcher_diagnostics"] is None
         assert summary["scenarios"][4]["mean_match_score"] is not None
         assert summary["scenarios"][6]["mean_match_score"] is None
         assert (output_dir / "sequence_search_debug.svg").exists()

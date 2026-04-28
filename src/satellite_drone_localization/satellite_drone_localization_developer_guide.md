@@ -95,6 +95,11 @@ Design notes:
   addition to inlier count, inlier ratio, certainty, and reprojection error.
   This is a first confidence-calibration step aimed at rejecting dense-match
   false positives before they enter the recursive prior state.
+- RoMa decisions now carry diagnostic gate values when the matcher reaches
+  correspondence fitting, and sequence summaries aggregate estimate-source and
+  fallback-source counts for every scenario. These fields are intended for
+  threshold tuning and confidence calibration, not for replacing the recorded
+  per-frame rows.
 - The map-constrained sequence policy is measured as a separate scenario. It
   caps search crops to the available calibrated reference extent, shifts the
   crop center back into the tile when possible, keeps failed measurements from

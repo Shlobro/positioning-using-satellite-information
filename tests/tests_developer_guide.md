@@ -40,6 +40,8 @@ Current scope:
 - matcher-roma tests now also verify false-positive rejection for spatially
   degenerate inlier support and implausible fitted scale using injected fake
   backends.
+- matcher-roma tests now also verify that accepted and late-stage rejected
+  decisions preserve diagnostic gate values used for future threshold tuning.
 - sequence-search tests now also cover the map-constrained search policy,
   including crop-center clamping, map-size crop limiting, and rejection of
   constrained RoMa updates that violate the motion envelope.
@@ -51,6 +53,8 @@ Current scope:
   matcher adds both `recursive_roma_matcher` and
   `recursive_roma_map_constrained_matcher` while preserving the default
   verifier behavior when RoMa is disabled.
+- sequence-search tests now also verify per-scenario estimate-source counts,
+  fallback-source counts, and that RoMa diagnostics flow into frame artifacts.
 
 Guidelines:
 

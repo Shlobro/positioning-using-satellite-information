@@ -122,6 +122,11 @@ def test_roma_matcher_recovers_synthetic_center_from_fake_backend() -> None:
         assert abs(decision.estimated_pixel_x - 112.0) < 3.0
         assert abs(decision.estimated_pixel_y - 100.0) < 3.0
         assert decision.match_score is not None
+        assert decision.diagnostics is not None
+        assert decision.diagnostics["sampled_match_count"] == 512
+        assert decision.diagnostics["inlier_count"] >= 48
+        assert decision.diagnostics["inlier_spatial_coverage"] >= 0.35
+        assert 0.55 <= decision.diagnostics["affine_scale"] <= 1.80
         assert matcher.sample_seed == 20260427
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
@@ -156,6 +161,7 @@ def test_roma_matcher_rejects_low_texture_frame() -> None:
 
         assert decision.accepted is False
         assert decision.estimate_source == "fallback_roma_low_texture"
+        assert decision.diagnostics is None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -189,6 +195,8 @@ def test_roma_matcher_rejects_spatially_degenerate_inliers() -> None:
 
         assert decision.accepted is False
         assert decision.estimate_source == "fallback_roma_poor_spatial_coverage"
+        assert decision.diagnostics is not None
+        assert decision.diagnostics["inlier_spatial_coverage"] < 0.35
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -222,5 +230,7 @@ def test_roma_matcher_rejects_implausible_affine_scale() -> None:
 
         assert decision.accepted is False
         assert decision.estimate_source == "fallback_roma_implausible_scale"
+        assert decision.diagnostics is not None
+        assert decision.diagnostics["affine_scale"] > 1.80
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)

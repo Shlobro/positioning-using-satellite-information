@@ -31,6 +31,9 @@ Guidelines:
 - `sequence_search_replay.py` now prints `constrained=` and `limited=` counts
   for sequence policies that shift crop centers or cap oversized crops to the
   calibrated reference image.
+- `sequence_search_replay.py` now also prints scenario fallback-source
+  breakdowns when fallbacks occur, while the JSON summary records both
+  estimate-source counts and per-frame RoMa diagnostics for threshold tuning.
 - `live_receiver_stub.py` is the Phase 1 minimal live intake entry point for one `live_frame` packet.
 - Repository-facing Python scripts should bootstrap `src/` explicitly so `python scripts/<tool>.py` works on a fresh checkout without installing the package first.
 - `verify_repo.py` is the deterministic repository verification path when direct `pytest` execution is not trustworthy in the local shell wrapper.

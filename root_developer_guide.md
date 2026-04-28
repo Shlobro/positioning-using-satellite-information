@@ -62,6 +62,10 @@ Current verification rule:
 - RoMa matching now has first-pass false-positive rejection for spatially
   degenerate inlier support and implausible fitted footprint scale. These
   failures remain visible as explicit fallback sources in sequence artifacts.
+- Sequence-search artifacts now include per-scenario estimate-source and
+  fallback-source counts, plus optional per-frame matcher diagnostics for RoMa
+  gates such as inlier count, certainty, reprojection error, spatial coverage,
+  and fitted affine scale.
 
 Guidelines:
 

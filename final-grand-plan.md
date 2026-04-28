@@ -928,3 +928,9 @@ The project is only done when all of the following are true:
 - What was done: Added first-pass RoMa false-positive rejection for spatially degenerate inlier support and implausible fitted affine scale, with deterministic fake-backend tests for both fallback reasons.
 - What we learned: On `DEV-SESSION-20260427T112451Z`, the gated map-constrained RoMa path kept `92/92` crops on-map, accepted `59/92` updates, and reduced mean error from the previous constrained-RoMa `14.72m` to `5.25m`. The acceptance gates removed enough bad neural updates to make the RoMa path materially useful instead of just more active.
 - How the plan changed: Continue confidence calibration before switching matcher families. The next sequence slice should expose a fallback-reason breakdown and RoMa diagnostics in the summary artifacts, then tune thresholds against mean error, accepted-match count, and final error. EfficientLoFTR remains a comparison candidate, but the current evidence says RoMa plus gates is viable enough to refine.
+
+### 2026-04-28
+
+- What was done: Added RoMa diagnostics and source-count breakdowns to sequence-search artifacts. Scenario summaries now record `estimate_source_counts` and `fallback_source_counts`, frame rows can carry RoMa matcher diagnostics, and the CLI prints fallback breakdowns when present.
+- What we learned: The previous 5.25 m result was strong enough to justify threshold tuning, but the artifact schema needed aggregate failure counts and gate values before tuning could be measured cleanly. The new fields make it possible to compare false-positive rejection against accepted-match count, fallback mode, final error, and the exact RoMa gate that rejected each frame.
+- How the plan changed: The next slice should run the RoMa-enabled replay again, inspect the new diagnostics, and tune the existing RoMa thresholds before adding another matcher family or starting training.
