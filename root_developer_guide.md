@@ -38,7 +38,7 @@ Current verification rule:
 - Once a vertical slice has the necessary code and documentation updates plus
   pasted verification evidence from the required workflow, that is the right
   time for the agent to suggest a commit and ask whether the user wants one.
-- The verification script now checks nine vertical slices: Phase 0 smoke artifacts, Phase 1 replay schema parsing, Phase 1 geometry-report generation, Phase 1 crop-plan generation, the combined Phase 1 replay pipeline, the minimal Phase 1 live receiver stub, the main-package map georeference transform, the sequence-search evaluator, and the standalone map calibrator tool tests.
+- The verification script now checks ten vertical slices: Phase 0 smoke artifacts, Phase 1 replay schema parsing, Phase 1 geometry-report generation, Phase 1 crop-plan generation, the combined Phase 1 replay pipeline, the minimal Phase 1 live receiver stub, the main-package map georeference transform, the sequence-search evaluator, the sequence-summary comparison helper, and the standalone map calibrator tool tests.
 - The sequence-search slice now includes the first explicit recursive
   prior-recentering policy, not just fixed-seed and oracle-baseline comparisons.
 - The sequence-search slice now also includes a deterministic placeholder
@@ -73,6 +73,10 @@ Current verification rule:
   likelihood scenario that compares simple sequence-state prediction and a
   combined motion/evidence likelihood against the static map-constrained RoMa
   temporal gate.
+- The current measurement handoff is to run the CUDA RoMa replay, then run
+  `scripts/compare_sequence_search.py` on the generated summary so the
+  velocity-likelihood scenario is judged from recorded deltas rather than from
+  manual inspection of the full JSON.
 
 Guidelines:
 

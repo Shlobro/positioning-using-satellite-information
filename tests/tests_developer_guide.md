@@ -62,6 +62,10 @@ Current scope:
   rejects low-probability updates, accepts supported motion updates, and that
   the optional RoMa artifact set includes the velocity-predicted likelihood
   scenario with recorded likelihood diagnostics.
+- sequence-comparison tests verify that completed sequence-search summaries can
+  be reduced into JSON/CSV deltas for the RoMa temporal-gate versus
+  velocity-likelihood decision, and that missing RoMa scenarios fail with a
+  clear rerun instruction.
 
 Guidelines:
 

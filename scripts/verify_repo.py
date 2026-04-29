@@ -22,7 +22,7 @@ from satellite_drone_localization.replay_cli import main as replay_main
 from satellite_drone_localization.crop_cli import main as crop_main
 from satellite_drone_localization.geometry_cli import main as geometry_main
 from satellite_drone_localization.replay_pipeline_cli import main as replay_pipeline_main
-from satellite_drone_localization.eval import build_sequence_search_artifacts
+from satellite_drone_localization.eval import build_sequence_search_artifacts, compare_sequence_summary
 from satellite_drone_localization.map_georeference import load_map_georeference
 from satellite_drone_localization.live import LivePacketReceiver, LiveReceiverConfig
 from satellite_drone_localization.smoke_pipeline import run_smoke
@@ -263,6 +263,45 @@ def verify_sequence_search() -> None:
         shutil.rmtree(repo_root, ignore_errors=True)
 
 
+def verify_sequence_comparison() -> None:
+    comparison = compare_sequence_summary(
+        {
+            "session_id": "VERIFY-SEQUENCE-COMPARISON",
+            "source_path": "synthetic",
+            "neural_matcher_name": "roma_outdoor",
+            "scenarios": [
+                {
+                    "scenario_name": "recursive_roma_map_constrained_matcher",
+                    "frame_count": 2,
+                    "matched_frame_count": 2,
+                    "fallback_frame_count": 0,
+                    "crop_inside_image_count": 2,
+                    "mean_estimate_error_m": 4.0,
+                    "max_estimate_error_m": 8.0,
+                    "final_estimate_error_m": 3.0,
+                    "mean_match_score": 0.8,
+                    "fallback_source_counts": {},
+                },
+                {
+                    "scenario_name": "recursive_roma_velocity_likelihood_matcher",
+                    "frame_count": 2,
+                    "matched_frame_count": 1,
+                    "fallback_frame_count": 1,
+                    "crop_inside_image_count": 2,
+                    "mean_estimate_error_m": 3.5,
+                    "max_estimate_error_m": 6.0,
+                    "final_estimate_error_m": 3.2,
+                    "mean_match_score": 0.82,
+                    "fallback_source_counts": {"fallback_roma_sequence_low_likelihood": 1},
+                },
+            ],
+        }
+    )
+    assert comparison.mean_error_delta_m == 0.5
+    assert comparison.max_error_delta_m == 2.0
+    assert comparison.sequence_low_likelihood_fallback_count == 1
+
+
 def write_synthetic_map_image(path: Path) -> None:
     image = Image.new("L", (200, 200), color=96)
     draw = ImageDraw.Draw(image)
@@ -320,6 +359,7 @@ def main() -> int:
     verify_live_receiver()
     verify_map_georeference()
     verify_sequence_search()
+    verify_sequence_comparison()
     verify_map_calibrator()
     print("verification_ok")
     return 0

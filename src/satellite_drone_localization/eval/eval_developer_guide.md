@@ -25,6 +25,9 @@ Current scope:
   grows.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
+- `reports/` contains derived report helpers. Its sequence-comparison workflow
+  compares two scenarios from a completed sequence-search summary and writes
+  compact JSON/CSV reports for measurement-driven decisions.
 - The sequence evaluator now reports seven default explicit policies:
   `seed_only`, `oracle_previous_truth`, `recursive_oracle_estimate`,
   `recursive_placeholder_matcher`, `recursive_image_baseline_matcher`, and
@@ -91,6 +94,11 @@ Current scope:
   next prior from the previous accepted velocity and rejects accepted RoMa
   transforms when their combined motion/evidence likelihood falls below the
   recorded threshold.
+- The sequence comparison helper defaults to comparing
+  `recursive_roma_map_constrained_matcher` against
+  `recursive_roma_velocity_likelihood_matcher`, reporting mean, max, final
+  error deltas, update-count deltas, and the number of
+  `fallback_roma_sequence_low_likelihood` decisions.
 
 Guidelines:
 
@@ -118,3 +126,5 @@ Guidelines:
 - When adding optional heavy matchers, keep the default repo verification path
   lightweight and deterministic. Use injected fake backends in tests and real
   replay measurements for the actual benchmark value.
+- Treat comparison reports as derived evidence from a completed replay summary;
+  they should not rerun the heavy neural matcher or mutate the source artifact.

@@ -958,3 +958,9 @@ The project is only done when all of the following are true:
 - What was done: Cleaned generated verification evidence out of git tracking while keeping local copies under `artifacts/manual-verification/`.
 - What we learned: The repository already documented manual-verification outputs as disposable local evidence, but old tracked files could still dirty the tree after every verification run. The isolated pytest cache directories also needed an explicit ignore pattern.
 - How the plan changed: No research phase changed. Future measurable evidence should be produced locally and summarized in `experiments/change-log.md` or `experiments/experiment-log.csv`; bulk generated artifacts stay local unless deliberately promoted.
+
+### 2026-04-29
+
+- What was done: Added a sequence-summary comparison helper and `scripts/compare_sequence_search.py` so the next CUDA RoMa replay can produce a compact JSON/CSV decision artifact comparing `recursive_roma_map_constrained_matcher` against `recursive_roma_velocity_likelihood_matcher`.
+- What we learned: The velocity-likelihood scenario already exists, but the project needed a repeatable way to reduce the large replay summary into the exact decision metrics: mean error, max error, final error, accepted updates, map coverage, and `fallback_roma_sequence_low_likelihood` counts. Required local verification passed on 2026-04-29 with `scripts/run_pytest_isolation.bat`, ending in `verification_ok`.
+- How the plan changed: The next human action is now explicit: run the CUDA RoMa replay, run the comparison helper on the generated summary, paste both outputs, and only then decide whether to tune likelihood thresholds, keep the temporal gate baseline, or implement a fuller particle filter.

@@ -289,3 +289,9 @@
 - intent: Clean the repository state by removing generated manual-verification evidence from source control while keeping local copies available for inspection.
 - linked run_ids: none
 - actual result: `artifacts/manual-verification/` is now untracked and remains ignored, and `artifacts/pytest-cache-files-*/` is ignored so isolated pytest cache directories do not produce permission-warning noise during status checks.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/reports/`, `scripts/compare_sequence_search.py`, `scripts/verify_repo.py`, `tests/test_sequence_comparison.py`, developer guides, `HUMAN_NEXT_STEPS.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Prepare the next measurement step by turning a completed CUDA RoMa replay summary into a compact baseline-versus-candidate comparison artifact.
+- linked run_ids: none yet
+- actual result: The repository now has a deterministic comparison helper for `recursive_roma_map_constrained_matcher` versus `recursive_roma_velocity_likelihood_matcher`, writing JSON and CSV deltas for mean error, max error, final error, accepted updates, map coverage, and low-likelihood fallbacks. The human handoff now points to the CUDA replay command, the comparison command, and the required local verification workflow. Required local verification passed on 2026-04-29 with `scripts/run_pytest_isolation.bat`, ending in `verification_ok`. Real CUDA replay evidence still needs to be produced by the user.

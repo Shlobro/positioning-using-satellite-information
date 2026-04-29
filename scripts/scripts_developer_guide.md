@@ -28,6 +28,9 @@ Guidelines:
 - `sequence_search_replay.py` now also accepts `--roma-model` and
   `--roma-device` so a pretrained RoMa benchmark can be added to the artifact
   set when explicitly requested, without changing the default local verifier.
+- `compare_sequence_search.py` reads a completed `sequence_search_summary.json`
+  and writes JSON/CSV deltas comparing the map-constrained RoMa temporal-gate
+  scenario against the velocity-likelihood RoMa scenario.
 - `sequence_search_replay.py` now prints `constrained=` and `limited=` counts
   for sequence policies that shift crop centers or cap oversized crops to the
   calibrated reference image.
@@ -48,6 +51,8 @@ Guidelines:
   calibration image path can fall back to a sibling PNG in the current working
   tree, so portable session data stays runnable after repository moves.
 - `verify_repo.py` now also exercises the sequence-search evaluator as a ninth verification slice.
+- `verify_repo.py` now also exercises the sequence-summary comparison helper
+  as a tenth verification slice.
 - The sequence-search verification slice now also checks the deterministic
   placeholder matcher scenario with a centered synthetic map fixture.
 - The sequence-search verification slice now also checks the real
@@ -61,5 +66,5 @@ Guidelines:
   CLI so the verifier does not depend on heavyweight pretrained downloads.
 - The default sequence-search verification path now expects seven scenarios,
   including `recursive_image_map_constrained_matcher`. RoMa-enabled real runs
-  add two more optional neural scenarios.
+  add three optional neural scenarios.
 - If in-session execution of `verify_repo.py` stalls, treat the user-run local output as authoritative instead of retrying repeatedly inside the agent wrapper.

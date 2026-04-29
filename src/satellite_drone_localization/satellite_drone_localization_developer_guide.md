@@ -113,3 +113,7 @@ Design notes:
   scenario. It predicts the next search prior from the last accepted velocity,
   then records a combined motion/evidence likelihood so static thresholding can
   be compared against a first sequence-state model.
+- Sequence-summary comparison is now a first-class evaluation helper. It reads
+  a completed replay summary and writes compact JSON/CSV deltas for the
+  map-constrained RoMa temporal gate versus the velocity-likelihood scenario,
+  without rerunning the heavy neural matcher.
