@@ -309,3 +309,9 @@
 - intent: Diagnose and contain the velocity-likelihood failure mode without building a fuller particle filter.
 - linked run_ids: none yet
 - actual result: The velocity-likelihood scenario now keeps search prediction separate from fallback state retention. It may center the crop on a velocity-predicted prior, but rejected matcher, temporal, or likelihood updates retain the last accepted estimate instead of committing the prediction as recursive state. Per-frame sequence artifacts now record the previous state, velocity-prior offset and distance, retained fallback state and distance from truth, state-update distance, and estimate-error delta from fallback. Syntax compilation passed for the edited sequence evaluator and test file; required local batch verification still needs to be run.
+
+- owner: Shlomo / Codex
+- files changed: `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/`, `experiments/change-log.md`, `experiments/experiment-log.csv`, `final-grand-plan.md`
+- intent: Measure the contained velocity-likelihood scenario after fixing fallback-state retention.
+- linked run_ids: manual `sequence-search-roma-velocity-likelihood-contained`
+- actual result: Required local verification passed first with `scripts/run_pytest_isolation.bat`, ending in `verification_ok`. The Windows CUDA RoMa replay then completed with `roma_outdoor` using the non-custom correlation path. The contained velocity-likelihood scenario no longer collapsed: it accepted `57/92` matches and reached `6.32m` mean error instead of the previous `2/92` matches and `1282.96m` mean error. It is still worse than `recursive_roma_map_constrained_matcher`, which reached `54/92` matches and `3.88m` mean error. The comparison report kept the recommendation `keep_map_constrained_temporal_gate_as_baseline`, with candidate deltas of `-2.45m` mean error, `-23.41m` max error, `0.38m` final error, `+3` matched frames, and `0` low-likelihood fallbacks.
