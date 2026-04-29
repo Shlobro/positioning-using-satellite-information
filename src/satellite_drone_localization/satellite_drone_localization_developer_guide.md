@@ -113,6 +113,11 @@ Design notes:
   scenario. It predicts the next search prior from the last accepted velocity,
   then records a combined motion/evidence likelihood so static thresholding can
   be compared against a first sequence-state model.
+- The velocity-predicted likelihood scenario is intentionally diagnostic and
+  contained: failed matcher or likelihood updates retain the last accepted
+  state instead of committing the velocity prediction, while frame rows record
+  the prediction distance, retained fallback state, state-update distance, and
+  estimate-error delta from fallback.
 - Sequence-summary comparison is now a first-class evaluation helper. It reads
   a completed replay summary and writes compact JSON/CSV deltas for the
   map-constrained RoMa temporal gate versus the velocity-likelihood scenario,

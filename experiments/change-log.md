@@ -295,3 +295,17 @@
 - intent: Prepare the next measurement step by turning a completed CUDA RoMa replay summary into a compact baseline-versus-candidate comparison artifact.
 - linked run_ids: none yet
 - actual result: The repository now has a deterministic comparison helper for `recursive_roma_map_constrained_matcher` versus `recursive_roma_velocity_likelihood_matcher`, writing JSON and CSV deltas for mean error, max error, final error, accepted updates, map coverage, and low-likelihood fallbacks. The human handoff now points to the CUDA replay command, the comparison command, and the required local verification workflow. Required local verification passed on 2026-04-29 with `scripts/run_pytest_isolation.bat`, ending in `verification_ok`. Real CUDA replay evidence still needs to be produced by the user.
+
+## 2026-04-30
+
+- owner: Shlomo / Codex
+- files changed: `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Measure whether `recursive_roma_velocity_likelihood_matcher` should replace or extend the map-constrained RoMa temporal-gate baseline before implementing a fuller particle filter.
+- linked run_ids: manual `sequence-search-roma-velocity-likelihood`
+- actual result: The CUDA RoMa replay completed on Windows with `roma_outdoor`; RoMa again used the non-custom correlation path because local correlation is unsupported on non-Linux platforms. `recursive_roma_map_constrained_matcher` remained the strongest measured path with `matches=54/92`, `err_mean=3.88m`, and `fallback_roma_temporal_motion_gate: 2`. `recursive_roma_velocity_likelihood_matcher` collapsed with `matches=2/92`, `err_mean=1282.96m`, comparison deltas `mean=-1279.08m`, `max=-2837.11m`, `final=-2854.52m`, and recommendation `keep_map_constrained_temporal_gate_as_baseline`. The next implementation should reject the current velocity-prior formulation and inspect why the velocity-likelihood scenario drifts catastrophically before adding a particle filter.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/sequence_search.py`, `tests/test_sequence_search.py`, developer guides, `HUMAN_NEXT_STEPS.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Diagnose and contain the velocity-likelihood failure mode without building a fuller particle filter.
+- linked run_ids: none yet
+- actual result: The velocity-likelihood scenario now keeps search prediction separate from fallback state retention. It may center the crop on a velocity-predicted prior, but rejected matcher, temporal, or likelihood updates retain the last accepted estimate instead of committing the prediction as recursive state. Per-frame sequence artifacts now record the previous state, velocity-prior offset and distance, retained fallback state and distance from truth, state-update distance, and estimate-error delta from fallback. Syntax compilation passed for the edited sequence evaluator and test file; required local batch verification still needs to be run.

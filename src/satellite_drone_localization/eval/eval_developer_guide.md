@@ -94,6 +94,11 @@ Current scope:
   next prior from the previous accepted velocity and rejects accepted RoMa
   transforms when their combined motion/evidence likelihood falls below the
   recorded threshold.
+- The velocity-likelihood scenario now separates search prediction from state
+  retention. The crop is still centered from the predicted prior, but fallback
+  writes the previous accepted estimate back into recursive state and frame
+  artifacts expose velocity-prior distance, fallback distance, state-update
+  distance, and error delta from fallback.
 - The sequence comparison helper defaults to comparing
   `recursive_roma_map_constrained_matcher` against
   `recursive_roma_velocity_likelihood_matcher`, reporting mean, max, final

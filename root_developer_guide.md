@@ -77,6 +77,10 @@ Current verification rule:
   `scripts/compare_sequence_search.py` on the generated summary so the
   velocity-likelihood scenario is judged from recorded deltas rather than from
   manual inspection of the full JSON.
+- The velocity-likelihood scenario now keeps failed predictions from becoming
+  recursive state: it can search from the velocity-predicted prior, but fallback
+  retains the last accepted state and records prediction, fallback, and drift
+  diagnostics in frame artifacts.
 
 Guidelines:
 

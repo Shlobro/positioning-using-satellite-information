@@ -62,6 +62,38 @@ class FakeRoMaBackend:
         return np.asarray(frame_points, dtype=np.float32), np.asarray(crop_points, dtype=np.float32)
 
 
+class SequenceFakeRoMaBackend:
+    def __init__(self, centers: list[tuple[float, float]]) -> None:
+        self.centers = centers
+        self.call_index = -1
+
+    def match(self, image_a, image_b, *args, device=None):
+        self.call_index += 1
+        return "matches", "certainty"
+
+    def sample(self, matches, certainty, num=5000):
+        import numpy as np
+
+        coords = np.zeros((512, 4), dtype=np.float32)
+        certainty_values = np.full((512,), 0.92, dtype=np.float32)
+        return coords, certainty_values
+
+    def to_pixel_coordinates(self, coords, height_a, width_a, height_b=None, width_b=None):
+        import numpy as np
+
+        center_x, center_y = self.centers[min(self.call_index, len(self.centers) - 1)]
+        frame_points: list[list[float]] = []
+        crop_points: list[list[float]] = []
+        offset_x = center_x - (width_a / 2.0)
+        offset_y = center_y - (height_a / 2.0)
+        for index in range(512):
+            local_x = float((index * 17) % max(1, width_a - 1))
+            local_y = float((index * 11) % max(1, height_a - 1))
+            frame_points.append([local_x, local_y])
+            crop_points.append([local_x + offset_x, local_y + offset_y])
+        return np.asarray(frame_points, dtype=np.float32), np.asarray(crop_points, dtype=np.float32)
+
+
 from satellite_drone_localization.eval.sequence_search_cli import main as sequence_search_main
 from satellite_drone_localization.map_georeference import load_map_georeference
 from satellite_drone_localization.packet_replay import load_replay_session
@@ -359,6 +391,102 @@ def test_map_constrained_roma_scenario_rejects_updates_outside_motion_gate() -> 
         assert artifacts.scenarios[-2].matched_frame_count == 0
         assert artifacts.scenarios[-2].fallback_source_counts["fallback_roma_temporal_motion_gate"] == 2
         assert artifacts.scenarios[-2].frames[0].matcher_diagnostics is not None
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_velocity_likelihood_fallback_retains_previous_state_and_reports_drift() -> None:
+    repo_root = make_repo_root()
+    try:
+        replay_path = repo_root / "capture.jsonl"
+        calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        frame_0001 = repo_root / "frame_0001.png"
+        frame_0002 = repo_root / "frame_0002.png"
+        frame_0003 = repo_root / "frame_0003.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0001, center_x=100, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0002, center_x=112, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0003, center_x=124, center_y=100)
+        write_jsonl(
+            replay_path,
+            [
+                {"packet_type": "session_start", "schema_version": "dev-packet-v1", "camera_hfov_deg": 84.0},
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:30Z",
+                    "image_name": "frame_0001.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:31Z",
+                    "image_name": "frame_0002.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.00112,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:32Z",
+                    "image_name": "frame_0003.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.00124,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+            ],
+        )
+        write_calibration(calibration_path, map_path)
+        roma_matcher = RoMaRegressionMatcher(
+            map_path,
+            backend=SequenceFakeRoMaBackend(
+                [
+                    (100.0, 100.0),
+                    (112.0, 100.0),
+                    (124.0, 100.0),
+                    (100.0, 100.0),
+                    (112.0, 100.0),
+                    (124.0, 100.0),
+                    (100.0, 100.0),
+                    (112.0, 100.0),
+                    (180.0, 100.0),
+                ]
+            ),
+            device="cpu",
+            model_name="roma_outdoor",
+        )
+
+        artifacts = build_sequence_search_artifacts(
+            load_replay_session(replay_path),
+            load_map_georeference(calibration_path),
+            max_speed_mps=25.0,
+            measurement_update_radius_m=5.0,
+            roma_matcher=roma_matcher,
+        )
+
+        velocity_scenario = artifacts.scenarios[-1]
+        fallback_frame = velocity_scenario.frames[2]
+        assert velocity_scenario.scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER
+        assert fallback_frame.prior_source == "velocity_prediction_recursive_roma_likelihood"
+        assert fallback_frame.velocity_prior_distance_m > 0.0
+        assert fallback_frame.estimate_source == "fallback_roma_temporal_motion_gate"
+        assert fallback_frame.estimated_latitude_deg == fallback_frame.fallback_latitude_deg
+        assert fallback_frame.estimated_longitude_deg == fallback_frame.fallback_longitude_deg
+        assert fallback_frame.fallback_distance_m < fallback_frame.estimate_distance_m + 1e-9
+        assert fallback_frame.estimate_error_delta_from_fallback_m == 0.0
+        assert fallback_frame.matcher_diagnostics is not None
+        assert fallback_frame.matcher_diagnostics["temporal_update_distance_m"] > fallback_frame.prior_search_radius_m
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 

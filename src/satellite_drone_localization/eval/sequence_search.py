@@ -63,6 +63,14 @@ class SequenceFrameResult:
     prior_source: str
     prior_latitude_deg: float
     prior_longitude_deg: float
+    previous_estimated_latitude_deg: float
+    previous_estimated_longitude_deg: float
+    velocity_prior_offset_east_m: float
+    velocity_prior_offset_north_m: float
+    velocity_prior_distance_m: float
+    fallback_latitude_deg: float
+    fallback_longitude_deg: float
+    fallback_distance_m: float
     target_latitude_deg: float
     target_longitude_deg: float
     prior_search_radius_m: float
@@ -80,6 +88,8 @@ class SequenceFrameResult:
     estimate_offset_east_m: float
     estimate_offset_north_m: float
     estimate_distance_m: float
+    state_update_distance_m: float
+    estimate_error_delta_from_fallback_m: float
     prior_pixel_x: float
     prior_pixel_y: float
     search_center_was_map_constrained: bool
@@ -399,8 +409,12 @@ def build_sequence_scenario_report(
                 crop_was_map_limited = True
         half_side_m = crop_side_m / 2.0
 
-        fallback_latitude_deg = prior_latitude_deg
-        fallback_longitude_deg = prior_longitude_deg
+        if scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER:
+            fallback_latitude_deg = previous_estimated_latitude_deg
+            fallback_longitude_deg = previous_estimated_longitude_deg
+        else:
+            fallback_latitude_deg = prior_latitude_deg
+            fallback_longitude_deg = prior_longitude_deg
         search_center_was_map_constrained = False
         if is_map_constrained_scenario(scenario_name):
             (
@@ -415,6 +429,18 @@ def build_sequence_scenario_report(
                 build_crop_pixel_bounds=build_crop_pixel_bounds,
             )
 
+        velocity_prior_offset_east_m, velocity_prior_offset_north_m = meters_offset_between(
+            origin_latitude_deg=previous_estimated_latitude_deg,
+            origin_longitude_deg=previous_estimated_longitude_deg,
+            target_latitude_deg=prior_latitude_deg,
+            target_longitude_deg=prior_longitude_deg,
+        )
+        fallback_offset_east_m, fallback_offset_north_m = meters_offset_between(
+            origin_latitude_deg=frame.latitude_deg,
+            origin_longitude_deg=frame.longitude_deg,
+            target_latitude_deg=fallback_latitude_deg,
+            target_longitude_deg=fallback_longitude_deg,
+        )
         target_offset_east_m, target_offset_north_m = meters_offset_between(
             origin_latitude_deg=prior_latitude_deg,
             origin_longitude_deg=prior_longitude_deg,
@@ -480,6 +506,12 @@ def build_sequence_scenario_report(
             target_longitude_deg=estimate_longitude_deg,
         )
         estimate_distance_m = math.hypot(estimate_offset_east_m, estimate_offset_north_m)
+        state_update_east_m, state_update_north_m = meters_offset_between(
+            origin_latitude_deg=previous_estimated_latitude_deg,
+            origin_longitude_deg=previous_estimated_longitude_deg,
+            target_latitude_deg=estimate_latitude_deg,
+            target_longitude_deg=estimate_longitude_deg,
+        )
         estimate_pixel_x, estimate_pixel_y = georeference.latlon_to_pixel(estimate_latitude_deg, estimate_longitude_deg)
 
         results.append(
@@ -492,6 +524,14 @@ def build_sequence_scenario_report(
                 prior_source=prior_source,
                 prior_latitude_deg=prior_latitude_deg,
                 prior_longitude_deg=prior_longitude_deg,
+                previous_estimated_latitude_deg=previous_estimated_latitude_deg,
+                previous_estimated_longitude_deg=previous_estimated_longitude_deg,
+                velocity_prior_offset_east_m=velocity_prior_offset_east_m,
+                velocity_prior_offset_north_m=velocity_prior_offset_north_m,
+                velocity_prior_distance_m=math.hypot(velocity_prior_offset_east_m, velocity_prior_offset_north_m),
+                fallback_latitude_deg=fallback_latitude_deg,
+                fallback_longitude_deg=fallback_longitude_deg,
+                fallback_distance_m=math.hypot(fallback_offset_east_m, fallback_offset_north_m),
                 target_latitude_deg=frame.latitude_deg,
                 target_longitude_deg=frame.longitude_deg,
                 prior_search_radius_m=prior_search_radius_m,
@@ -509,6 +549,9 @@ def build_sequence_scenario_report(
                 estimate_offset_east_m=estimate_offset_east_m,
                 estimate_offset_north_m=estimate_offset_north_m,
                 estimate_distance_m=estimate_distance_m,
+                state_update_distance_m=math.hypot(state_update_east_m, state_update_north_m),
+                estimate_error_delta_from_fallback_m=estimate_distance_m
+                - math.hypot(fallback_offset_east_m, fallback_offset_north_m),
                 prior_pixel_x=prior_pixel_x,
                 prior_pixel_y=prior_pixel_y,
                 target_pixel_x=target_pixel_x,

@@ -62,6 +62,9 @@ Current scope:
 - RoMa-enabled sequence evaluation now also reports a velocity-predicted
   likelihood scenario that carries a simple velocity estimate forward and logs
   combined motion/evidence likelihood diagnostics for accepted dense matches.
+- The velocity-predicted likelihood scenario now records explicit prediction,
+  fallback-retention, and drift fields per frame, and failed velocity
+  predictions no longer replace the last accepted state.
 - `satellite_drone_localization/eval/` now also includes a sequence-summary
   comparison helper that turns a completed RoMa replay artifact into JSON/CSV
   deltas for the map-constrained temporal gate versus velocity-likelihood

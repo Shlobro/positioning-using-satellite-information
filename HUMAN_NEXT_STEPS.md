@@ -4,7 +4,9 @@ This file describes the current human-run measurement step for the RoMa sequence
 
 ## 1. Goal
 
-Measure whether `recursive_roma_velocity_likelihood_matcher` improves on the current strongest RoMa baseline:
+Verify the containment slice, then remeasure whether the contained
+`recursive_roma_velocity_likelihood_matcher` improves on the current strongest
+RoMa baseline:
 
 - baseline: `recursive_roma_map_constrained_matcher`
 - candidate: `recursive_roma_velocity_likelihood_matcher`
@@ -12,6 +14,20 @@ Measure whether `recursive_roma_velocity_likelihood_matcher` improves on the cur
 The decision should use recorded artifacts, not manual memory.
 
 ## 2. Run The CUDA RoMa Replay
+
+First run the required local verification harness from the repository root:
+
+```powershell
+.\scripts\run_pytest_isolation.bat
+```
+
+Paste the output back. Success ends with:
+
+```text
+verification_ok
+```
+
+Then run the replay.
 
 Use the Windows machine with CUDA, PyTorch CUDA, and `romatch` already installed.
 
@@ -58,21 +74,7 @@ Paste the terminal output from both commands, especially these fields:
 - fallback-source counts
 - comparison recommendation
 
-## 5. Required Repository Verification
-
-After code changes, run the required local verification harness:
-
-```powershell
-.\scripts\run_pytest_isolation.bat
-```
-
-Paste the output back. Success ends with:
-
-```text
-verification_ok
-```
-
-## 6. Decision Rule
+## 5. Decision Rule
 
 If velocity likelihood lowers mean error and max error without materially hurting final error or accepted updates, keep developing the sequence-state path.
 
