@@ -12,6 +12,7 @@ build/
 artifacts/runs/
 artifacts/manual-verification/
 artifacts/pytest-cache/
+artifacts/pytest-cache-files-*/
 artifacts/test-temp/
 
 # System temp directories

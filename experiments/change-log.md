@@ -281,3 +281,11 @@
 - intent: Add the first sequence-state comparison after the temporal RoMa gate showed strong mean error but remaining high max error.
 - linked run_ids: none yet
 - actual result: Sequence JSON/SVG writing moved into `sequence_artifacts.py` so the main evaluator stays below the 1000-line code limit. RoMa-enabled runs now append `recursive_roma_velocity_likelihood_matcher`, which predicts the next prior from the previous accepted velocity and adds a combined motion/evidence likelihood gate with `fallback_roma_sequence_low_likelihood`. Deterministic tests cover low-probability rejection, supported-update acceptance, and artifact wiring. Syntax compilation passed; the agent-run `python scripts\verify_repo.py` command stalled under the shell wrapper, so required local batch verification still needs to be run by the user.
+
+### 2026-04-29
+
+- owner: Codex
+- files changed: `.gitignore`, `artifacts/manual-verification/` git tracking, `artifacts/artifacts_developer_guide.md`, `root_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Clean the repository state by removing generated manual-verification evidence from source control while keeping local copies available for inspection.
+- linked run_ids: none
+- actual result: `artifacts/manual-verification/` is now untracked and remains ignored, and `artifacts/pytest-cache-files-*/` is ignored so isolated pytest cache directories do not produce permission-warning noise during status checks.

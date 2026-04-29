@@ -952,3 +952,9 @@ The project is only done when all of the following are true:
 - What was done: Added `recursive_roma_velocity_likelihood_matcher` as a separate RoMa-enabled sequence scenario. It predicts the next prior from the previous accepted velocity and applies a combined motion/evidence likelihood gate after the existing RoMa temporal gate. Sequence artifact writing was split into `sequence_artifacts.py` to keep `sequence_search.py` under the repository file-size limit.
 - What we learned: The project can now compare static map-constrained RoMa temporal gating against a first sequence-state model without replacing the previous benchmark. Syntax compilation passed, but the agent-run `python scripts\verify_repo.py` command stalled under the shell wrapper again, so local batch verification remains the authoritative evidence path.
 - How the plan changed: The next measured run should replay `DEV-SESSION-20260427T112451Z` with CUDA RoMa and compare `recursive_roma_map_constrained_matcher` against `recursive_roma_velocity_likelihood_matcher` on mean error, max error, final error, accepted matches, and `fallback_roma_sequence_low_likelihood` counts before adding a fuller particle filter.
+
+### 2026-04-29
+
+- What was done: Cleaned generated verification evidence out of git tracking while keeping local copies under `artifacts/manual-verification/`.
+- What we learned: The repository already documented manual-verification outputs as disposable local evidence, but old tracked files could still dirty the tree after every verification run. The isolated pytest cache directories also needed an explicit ignore pattern.
+- How the plan changed: No research phase changed. Future measurable evidence should be produced locally and summarized in `experiments/change-log.md` or `experiments/experiment-log.csv`; bulk generated artifacts stay local unless deliberately promoted.
