@@ -263,3 +263,15 @@
 - intent: Expose RoMa fallback and gate diagnostics in sequence artifacts before tuning acceptance thresholds.
 - linked run_ids: none yet
 - actual result: RoMa decisions now carry sampled-match, inlier, certainty, reprojection, spatial-coverage, affine-scale, and estimated-center diagnostics when those stages are reached. Sequence scenario summaries now include `estimate_source_counts` and `fallback_source_counts`, frame rows include optional `matcher_diagnostics`, and the CLI prints fallback-source breakdowns when present. Syntax compilation passed; required local batch verification still needs to be run by the user.
+
+- owner: Codex
+- files changed: local Python environment, `artifacts/manual-verification/sequence-search-roma-diagnostics/`
+- intent: Set up the second PC for CUDA RoMa replay and generate the first diagnostic artifact using the newly exposed RoMa gate fields.
+- linked run_ids: manual `sequence-search-roma-diagnostics`
+- actual result: Installed CUDA-enabled PyTorch `2.11.0+cu126`, verified CUDA tensor execution on the NVIDIA GeForce RTX 4060 Laptop GPU, installed `romatch 0.1.2`, loaded `roma_outdoor` on CUDA, and ran the replay to completion. On Windows, RoMa reported that local correlation is unsupported and used the non-custom path. `recursive_roma_map_constrained_matcher` produced `matches=54/92`, `err_mean=7.35m`, `final_error=2.30m`, and fallback counts `fallback_roma_implausible_scale: 13`, `fallback_roma_low_certainty: 2`, `fallback_roma_weak_inlier_support: 17`, `fallback_roma_poor_spatial_coverage: 6`. The diagnostic artifact shows accepted high-score false positives remain, including frame 10 at `32.67m` error and frame 16 at `40.87m` error.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/sequence_policy.py`, `src/satellite_drone_localization/eval/sequence_search.py`, `tests/test_sequence_search.py`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add a second-stage temporal/geometric consistency gate for map-constrained RoMa updates so accepted dense matches cannot jump beyond the current motion radius or make large weak-evidence updates without being recorded as fallbacks.
+- linked run_ids: manual `sequence-search-roma-temporal-gate`
+- actual result: The sequence policy now rejects map-constrained RoMa updates with `fallback_roma_temporal_motion_gate` when they exceed the current prior motion radius, and with `fallback_roma_temporal_weak_large_update` when a large update has weak score, inlier-ratio, or spatial-coverage evidence. Deterministic tests cover weak-large-update rejection and strong-large-recovery acceptance. Syntax compilation passed. On the Windows CUDA replay, `recursive_roma_map_constrained_matcher` changed from the previous diagnostic result of `54/92` matches and `7.35m` mean error to `53/92` matches, `4.60m` mean error, `21.51m` max error, and `2.30m` final error, with new fallback counts `fallback_roma_temporal_motion_gate: 1` and `fallback_roma_temporal_weak_large_update: 1`.

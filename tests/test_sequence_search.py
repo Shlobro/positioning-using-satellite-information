@@ -23,7 +23,11 @@ from satellite_drone_localization.eval.sequence_search import (
     write_sequence_search_summary,
 )
 from satellite_drone_localization.eval.matcher_roma import RoMaRegressionMatcher
-from satellite_drone_localization.eval.sequence_policy import constrain_prior_to_image, estimate_map_limited_square_side_m
+from satellite_drone_localization.eval.sequence_policy import (
+    constrain_prior_to_image,
+    estimate_map_limited_square_side_m,
+    evaluate_roma_temporal_consistency,
+)
 
 
 class FakeRoMaBackend:
@@ -344,12 +348,45 @@ def test_map_constrained_roma_scenario_rejects_updates_outside_motion_gate() -> 
         )
 
         assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
-        assert artifacts.scenarios[-1].frames[0].estimate_source == "fallback_map_constrained_update_outside_motion_gate"
+        assert artifacts.scenarios[-1].frames[0].estimate_source == "fallback_roma_temporal_motion_gate"
         assert artifacts.scenarios[-1].matched_frame_count == 0
-        assert artifacts.scenarios[-1].fallback_source_counts["fallback_map_constrained_update_outside_motion_gate"] == 2
+        assert artifacts.scenarios[-1].fallback_source_counts["fallback_roma_temporal_motion_gate"] == 2
         assert artifacts.scenarios[-1].frames[0].matcher_diagnostics is not None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_roma_temporal_gate_rejects_weak_large_update() -> None:
+    diagnostics = {"inlier_ratio": 0.13, "inlier_spatial_coverage": 0.36}
+
+    accepted, fallback_source = evaluate_roma_temporal_consistency(
+        update_distance_m=41.0,
+        prior_search_radius_m=52.0,
+        measurement_update_radius_m=5.0,
+        match_score=0.67,
+        diagnostics=diagnostics,
+    )
+
+    assert accepted is False
+    assert fallback_source == "fallback_roma_temporal_weak_large_update"
+    assert diagnostics["temporal_update_distance_m"] == 41.0
+    assert diagnostics["temporal_weak_large_update_evidence"] == 1
+
+
+def test_roma_temporal_gate_accepts_strong_large_recovery() -> None:
+    diagnostics = {"inlier_ratio": 0.30, "inlier_spatial_coverage": 0.50}
+
+    accepted, fallback_source = evaluate_roma_temporal_consistency(
+        update_distance_m=42.0,
+        prior_search_radius_m=128.0,
+        measurement_update_radius_m=5.0,
+        match_score=0.81,
+        diagnostics=diagnostics,
+    )
+
+    assert accepted is True
+    assert fallback_source is None
+    assert diagnostics["temporal_weak_large_update_evidence"] == 0
 
 
 def test_constrain_prior_to_image_moves_offmap_crop_center() -> None:

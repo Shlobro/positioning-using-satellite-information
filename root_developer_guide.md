@@ -66,6 +66,9 @@ Current verification rule:
   fallback-source counts, plus optional per-frame matcher diagnostics for RoMa
   gates such as inlier count, certainty, reprojection error, spatial coverage,
   and fitted affine scale.
+- The map-constrained RoMa scenario now applies a second-stage temporal gate
+  that rejects updates outside the current motion radius or large weak-evidence
+  jumps before they can poison the recursive prior.
 
 Guidelines:
 

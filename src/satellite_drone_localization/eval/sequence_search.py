@@ -17,7 +17,13 @@ from .matcher_classical import ClassicalFeatureMatcher
 from .matcher_image_baseline import ImageBaselineMatcher
 from .matcher_roma import RoMaRegressionMatcher
 from .matcher_placeholder import build_truth_anchored_placeholder_match
-from .sequence_policy import constrain_prior_to_image, estimate_map_limited_square_side_m
+from .sequence_policy import (
+    build_crop_pixel_bounds,
+    constrain_prior_to_image,
+    estimate_map_limited_square_side_m,
+    evaluate_roma_temporal_consistency,
+    offset_latlon_by_meters,
+)
 
 
 SCENARIO_SEED_ONLY = "seed_only"
@@ -40,7 +46,6 @@ SCENARIO_NAMES = (
     SCENARIO_RECURSIVE_ROMA_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
 )
-EARTH_RADIUS_M = 6_378_137.0
 
 
 @dataclass(frozen=True)
@@ -699,6 +704,7 @@ def build_estimate_update(
             decision.estimated_pixel_x,
             decision.estimated_pixel_y,
         )
+        accepted_diagnostics = getattr(decision, "diagnostics", None)
         if is_map_constrained_scenario(scenario_name):
             update_east_m, update_north_m = meters_offset_between(
                 origin_latitude_deg=fallback_latitude_deg,
@@ -706,7 +712,30 @@ def build_estimate_update(
                 target_latitude_deg=estimated_latitude_deg,
                 target_longitude_deg=estimated_longitude_deg,
             )
-            if math.hypot(update_east_m, update_north_m) > prior_search_radius_m + measurement_update_radius_m:
+            update_distance_m = math.hypot(update_east_m, update_north_m)
+            decision_diagnostics = getattr(decision, "diagnostics", None)
+            if scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER:
+                matcher_diagnostics = dict(decision_diagnostics or {})
+                accepted_diagnostics = matcher_diagnostics
+                is_consistent, fallback_source = evaluate_roma_temporal_consistency(
+                    update_distance_m=update_distance_m,
+                    prior_search_radius_m=prior_search_radius_m,
+                    measurement_update_radius_m=measurement_update_radius_m,
+                    match_score=decision.match_score,
+                    diagnostics=matcher_diagnostics,
+                )
+                if not is_consistent:
+                    fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
+                    return (
+                        fallback_source or "fallback_roma_temporal_inconsistent_update",
+                        fallback_latitude_deg,
+                        fallback_longitude_deg,
+                        fallback_confidence_radius_m,
+                        decision.match_score,
+                        decision.runner_up_match_score,
+                        matcher_diagnostics,
+                    )
+            elif update_distance_m > prior_search_radius_m + measurement_update_radius_m:
                 fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
                 return (
                     "fallback_map_constrained_update_outside_motion_gate",
@@ -724,7 +753,7 @@ def build_estimate_update(
             decision.confidence_radius_m,
             decision.match_score,
             decision.runner_up_match_score,
-            getattr(decision, "diagnostics", None),
+            accepted_diagnostics,
         )
 
     fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
@@ -737,26 +766,6 @@ def build_estimate_update(
         decision.runner_up_match_score,
         getattr(decision, "diagnostics", None),
     )
-
-
-def build_crop_pixel_bounds(
-    *,
-    georeference: MapGeoreference,
-    prior_latitude_deg: float,
-    prior_longitude_deg: float,
-    half_side_m: float,
-) -> tuple[float, float, float, float]:
-    """Project the four crop corners into image pixels and return their bounding box."""
-    corners = [
-        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=-half_side_m, north_m=half_side_m),
-        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=half_side_m, north_m=half_side_m),
-        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=half_side_m, north_m=-half_side_m),
-        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=-half_side_m, north_m=-half_side_m),
-    ]
-    pixel_corners = [georeference.latlon_to_pixel(latitude_deg, longitude_deg) for latitude_deg, longitude_deg in corners]
-    xs = [pixel_x for pixel_x, _ in pixel_corners]
-    ys = [pixel_y for _, pixel_y in pixel_corners]
-    return min(xs), min(ys), max(xs), max(ys)
 
 
 def write_sequence_search_summary(path: Path, artifacts: SequenceSearchArtifacts) -> None:
@@ -964,20 +973,6 @@ def is_map_constrained_scenario(scenario_name: str) -> bool:
         SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
         SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
     }
-
-
-def offset_latlon_by_meters(
-    latitude_deg: float,
-    longitude_deg: float,
-    *,
-    east_m: float,
-    north_m: float,
-) -> tuple[float, float]:
-    """Offset one nearby WGS84 point by east/north meters."""
-    latitude_rad = math.radians(latitude_deg)
-    latitude_out = latitude_deg + math.degrees(north_m / EARTH_RADIUS_M)
-    longitude_out = longitude_deg + math.degrees(east_m / (EARTH_RADIUS_M * math.cos(latitude_rad)))
-    return latitude_out, longitude_out
 
 
 def _parse_timestamp(value: str) -> datetime:

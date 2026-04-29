@@ -105,3 +105,7 @@ Design notes:
   crop center back into the tile when possible, keeps failed measurements from
   replacing the previous state with an artificial clamped center, and rejects
   accepted constrained updates that violate the motion envelope.
+- The map-constrained RoMa policy adds a stricter temporal consistency pass:
+  RoMa updates outside the current motion radius are rejected, and large jumps
+  need stronger score, inlier-ratio, and spatial-coverage evidence before they
+  can become the next recursive prior.

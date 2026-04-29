@@ -53,6 +53,9 @@ Current scope:
 - `satellite_drone_localization/eval/` now also holds sequence policy helpers
   for map-constrained search crops, so boundary-aware bootstrap experiments do
   not bloat the main sequence evaluator.
+- `satellite_drone_localization/eval/` now also centralizes RoMa temporal
+  consistency checks in the sequence policy helpers, so accepted neural updates
+  can be filtered against prior motion and evidence strength.
 
 Guidelines:
 

@@ -18,7 +18,8 @@ Current scope:
 - `matcher_roma.py` holds the optional pretrained RoMa benchmark path used to
   compare recursive tracking against the classical and raster baselines.
 - `sequence_policy.py` holds reusable map-boundary policy helpers for
-  boundary-aware recursive search experiments.
+  boundary-aware recursive search experiments and RoMa temporal consistency
+  gates.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
 - The sequence evaluator now reports seven default explicit policies:
@@ -77,6 +78,11 @@ Current scope:
 - Each sequence scenario now also reports `estimate_source_counts` and
   `fallback_source_counts` in the JSON artifact, so replay comparisons can be
   tuned from aggregate failure modes before inspecting individual frames.
+- The map-constrained RoMa scenario now runs a second-stage temporal gate after
+  the matcher accepts a transform. It rejects updates beyond the current prior
+  motion radius and large jumps whose RoMa score, inlier ratio, or spatial
+  coverage are still weak; those rejections appear as explicit
+  `fallback_roma_temporal_*` sources.
 
 Guidelines:
 
@@ -97,6 +103,8 @@ Guidelines:
 - When adding image-matcher gates, measure both error and map persistence on a
   real replay. A stricter gate is only useful if it improves recursive behavior
   or makes failure more honest in the artifact summaries.
+- Keep temporal gates in `sequence_policy.py` when they depend on sequence
+  state rather than on matcher-internal correspondence fitting.
 - When adding optional heavy matchers, keep the default repo verification path
   lightweight and deterministic. Use injected fake backends in tests and real
   replay measurements for the actual benchmark value.

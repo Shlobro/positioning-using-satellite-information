@@ -7,6 +7,46 @@ import math
 from ..crop import meters_offset_between
 from ..map_georeference import MapGeoreference
 
+ROMA_TEMPORAL_LARGE_UPDATE_MIN_M = 20.0
+ROMA_TEMPORAL_MIN_LARGE_UPDATE_SCORE = 0.75
+ROMA_TEMPORAL_MIN_LARGE_UPDATE_INLIER_RATIO = 0.18
+ROMA_TEMPORAL_MIN_LARGE_UPDATE_COVERAGE = 0.42
+EARTH_RADIUS_M = 6_378_137.0
+
+
+def offset_latlon_by_meters(
+    latitude_deg: float,
+    longitude_deg: float,
+    *,
+    east_m: float,
+    north_m: float,
+) -> tuple[float, float]:
+    """Offset one nearby WGS84 point by east/north meters."""
+    latitude_rad = math.radians(latitude_deg)
+    latitude_out = latitude_deg + math.degrees(north_m / EARTH_RADIUS_M)
+    longitude_out = longitude_deg + math.degrees(east_m / (EARTH_RADIUS_M * math.cos(latitude_rad)))
+    return latitude_out, longitude_out
+
+
+def build_crop_pixel_bounds(
+    *,
+    georeference: MapGeoreference,
+    prior_latitude_deg: float,
+    prior_longitude_deg: float,
+    half_side_m: float,
+) -> tuple[float, float, float, float]:
+    """Project the four crop corners into image pixels and return their bounding box."""
+    corners = [
+        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=-half_side_m, north_m=half_side_m),
+        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=half_side_m, north_m=half_side_m),
+        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=half_side_m, north_m=-half_side_m),
+        offset_latlon_by_meters(prior_latitude_deg, prior_longitude_deg, east_m=-half_side_m, north_m=-half_side_m),
+    ]
+    pixel_corners = [georeference.latlon_to_pixel(latitude_deg, longitude_deg) for latitude_deg, longitude_deg in corners]
+    xs = [pixel_x for pixel_x, _ in pixel_corners]
+    ys = [pixel_y for _, pixel_y in pixel_corners]
+    return min(xs), min(ys), max(xs), max(ys)
+
 
 def constrain_prior_to_image(
     *,
@@ -74,3 +114,34 @@ def estimate_map_limited_square_side_m(georeference: MapGeoreference) -> float:
     image_width_m = math.hypot(width_east_m, width_north_m)
     image_height_m = math.hypot(height_east_m, height_north_m)
     return max(1.0, min(image_width_m, image_height_m) * 0.99)
+
+
+def evaluate_roma_temporal_consistency(
+    *,
+    update_distance_m: float,
+    prior_search_radius_m: float,
+    measurement_update_radius_m: float,
+    match_score: float | None,
+    diagnostics: dict[str, float | int],
+) -> tuple[bool, str | None]:
+    """Return whether a RoMa update is consistent with prior motion and evidence quality."""
+    motion_limit_m = max(prior_search_radius_m, measurement_update_radius_m)
+    large_update_threshold_m = max(ROMA_TEMPORAL_LARGE_UPDATE_MIN_M, measurement_update_radius_m * 4.0)
+    inlier_ratio = float(diagnostics.get("inlier_ratio", 0.0))
+    spatial_coverage = float(diagnostics.get("inlier_spatial_coverage", 0.0))
+    score = 0.0 if match_score is None else match_score
+    weak_large_update_evidence = (
+        score < ROMA_TEMPORAL_MIN_LARGE_UPDATE_SCORE
+        or inlier_ratio < ROMA_TEMPORAL_MIN_LARGE_UPDATE_INLIER_RATIO
+        or spatial_coverage < ROMA_TEMPORAL_MIN_LARGE_UPDATE_COVERAGE
+    )
+    diagnostics["temporal_update_distance_m"] = update_distance_m
+    diagnostics["temporal_motion_limit_m"] = motion_limit_m
+    diagnostics["temporal_large_update_threshold_m"] = large_update_threshold_m
+    diagnostics["temporal_weak_large_update_evidence"] = int(weak_large_update_evidence)
+
+    if update_distance_m > motion_limit_m:
+        return False, "fallback_roma_temporal_motion_gate"
+    if update_distance_m > large_update_threshold_m and weak_large_update_evidence:
+        return False, "fallback_roma_temporal_weak_large_update"
+    return True, None

@@ -55,6 +55,9 @@ Current scope:
   verifier behavior when RoMa is disabled.
 - sequence-search tests now also verify per-scenario estimate-source counts,
   fallback-source counts, and that RoMa diagnostics flow into frame artifacts.
+- sequence-search tests now also verify the RoMa temporal gate rejects weak
+  large jumps while preserving strong large recovery updates, and that
+  map-constrained RoMa motion-gate fallbacks are counted explicitly.
 
 Guidelines:
 
