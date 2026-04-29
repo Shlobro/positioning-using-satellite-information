@@ -58,6 +58,10 @@ Current scope:
 - sequence-search tests now also verify the RoMa temporal gate rejects weak
   large jumps while preserving strong large recovery updates, and that
   map-constrained RoMa motion-gate fallbacks are counted explicitly.
+- sequence-search tests now also verify the RoMa sequence-likelihood helper
+  rejects low-probability updates, accepts supported motion updates, and that
+  the optional RoMa artifact set includes the velocity-predicted likelihood
+  scenario with recorded likelihood diagnostics.
 
 Guidelines:
 

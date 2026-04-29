@@ -20,6 +20,9 @@ Current scope:
 - `sequence_policy.py` holds reusable map-boundary policy helpers for
   boundary-aware recursive search experiments and RoMa temporal consistency
   gates.
+- `sequence_artifacts.py` writes sequence-search JSON summaries and debug SVGs
+  so report formatting stays separate from the main evaluator as scenario count
+  grows.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
 - The sequence evaluator now reports seven default explicit policies:
@@ -83,6 +86,11 @@ Current scope:
   motion radius and large jumps whose RoMa score, inlier ratio, or spatial
   coverage are still weak; those rejections appear as explicit
   `fallback_roma_temporal_*` sources.
+- RoMa-enabled runs now also append
+  `recursive_roma_velocity_likelihood_matcher`. This scenario predicts the
+  next prior from the previous accepted velocity and rejects accepted RoMa
+  transforms when their combined motion/evidence likelihood falls below the
+  recorded threshold.
 
 Guidelines:
 
@@ -105,6 +113,8 @@ Guidelines:
   or makes failure more honest in the artifact summaries.
 - Keep temporal gates in `sequence_policy.py` when they depend on sequence
   state rather than on matcher-internal correspondence fitting.
+- Keep artifact serialization in `sequence_artifacts.py`; the main evaluator
+  should stay focused on scenario state transitions and measurement updates.
 - When adding optional heavy matchers, keep the default repo verification path
   lightweight and deterministic. Use injected fake backends in tests and real
   replay measurements for the actual benchmark value.

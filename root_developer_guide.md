@@ -69,6 +69,10 @@ Current verification rule:
 - The map-constrained RoMa scenario now applies a second-stage temporal gate
   that rejects updates outside the current motion radius or large weak-evidence
   jumps before they can poison the recursive prior.
+- RoMa-enabled sequence artifacts now also include a velocity-predicted
+  likelihood scenario that compares simple sequence-state prediction and a
+  combined motion/evidence likelihood against the static map-constrained RoMa
+  temporal gate.
 
 Guidelines:
 

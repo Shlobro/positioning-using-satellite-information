@@ -11,6 +11,7 @@ ROMA_TEMPORAL_LARGE_UPDATE_MIN_M = 20.0
 ROMA_TEMPORAL_MIN_LARGE_UPDATE_SCORE = 0.75
 ROMA_TEMPORAL_MIN_LARGE_UPDATE_INLIER_RATIO = 0.18
 ROMA_TEMPORAL_MIN_LARGE_UPDATE_COVERAGE = 0.42
+ROMA_SEQUENCE_MIN_LIKELIHOOD = 0.08
 EARTH_RADIUS_M = 6_378_137.0
 
 
@@ -144,4 +145,31 @@ def evaluate_roma_temporal_consistency(
         return False, "fallback_roma_temporal_motion_gate"
     if update_distance_m > large_update_threshold_m and weak_large_update_evidence:
         return False, "fallback_roma_temporal_weak_large_update"
+    return True, None
+
+
+def evaluate_roma_sequence_likelihood(
+    *,
+    update_distance_m: float,
+    prior_search_radius_m: float,
+    measurement_update_radius_m: float,
+    match_score: float | None,
+    diagnostics: dict[str, float | int],
+) -> tuple[bool, str | None]:
+    """Score a RoMa update against a simple motion likelihood and matcher evidence."""
+    motion_sigma_m = max(measurement_update_radius_m * 2.0, prior_search_radius_m * 0.5, 1.0)
+    motion_likelihood = math.exp(-0.5 * (update_distance_m / motion_sigma_m) ** 2)
+    score = 0.0 if match_score is None else max(0.0, min(1.0, match_score))
+    inlier_ratio = max(0.0, min(1.0, float(diagnostics.get("inlier_ratio", 0.0)) / 0.25))
+    spatial_coverage = max(0.0, min(1.0, float(diagnostics.get("inlier_spatial_coverage", 0.0)) / 0.60))
+    evidence_likelihood = (score + inlier_ratio + spatial_coverage) / 3.0
+    sequence_likelihood = motion_likelihood * evidence_likelihood
+    diagnostics["sequence_motion_sigma_m"] = motion_sigma_m
+    diagnostics["sequence_motion_likelihood"] = motion_likelihood
+    diagnostics["sequence_evidence_likelihood"] = evidence_likelihood
+    diagnostics["sequence_update_likelihood"] = sequence_likelihood
+    diagnostics["sequence_min_likelihood"] = ROMA_SEQUENCE_MIN_LIKELIHOOD
+
+    if sequence_likelihood < ROMA_SEQUENCE_MIN_LIKELIHOOD:
+        return False, "fallback_roma_sequence_low_likelihood"
     return True, None

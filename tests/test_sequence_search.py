@@ -15,6 +15,7 @@ from satellite_drone_localization.eval.sequence_search import (
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+    SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
     SCENARIO_SEED_ONLY,
     build_sequence_search_artifacts,
@@ -26,6 +27,7 @@ from satellite_drone_localization.eval.matcher_roma import RoMaRegressionMatcher
 from satellite_drone_localization.eval.sequence_policy import (
     constrain_prior_to_image,
     estimate_map_limited_square_side_m,
+    evaluate_roma_sequence_likelihood,
     evaluate_roma_temporal_consistency,
 )
 
@@ -275,19 +277,24 @@ def test_build_sequence_search_artifacts_adds_optional_roma_scenario() -> None:
         )
 
         assert artifacts.neural_matcher_name == "roma_outdoor"
-        assert artifacts.scenarios[-2].scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER
-        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
-        assert artifacts.scenarios[-2].frames[1].prior_source == "previous_estimate_recursive_roma"
+        assert artifacts.scenarios[-3].scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER
+        assert artifacts.scenarios[-2].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
+        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER
+        assert artifacts.scenarios[-3].frames[1].prior_source == "previous_estimate_recursive_roma"
+        assert artifacts.scenarios[-3].frames[1].estimate_source == "matched_roma"
+        assert artifacts.scenarios[-3].matched_frame_count == 2
+        assert artifacts.scenarios[-3].mean_match_score is not None
+        assert artifacts.scenarios[-3].estimate_source_counts["matched_roma"] == 2
+        assert artifacts.scenarios[-3].fallback_source_counts == {}
+        assert artifacts.scenarios[-3].frames[1].matcher_diagnostics is not None
+        assert artifacts.scenarios[-3].frames[1].matcher_diagnostics["inlier_count"] >= 48
+        assert artifacts.scenarios[-2].frames[1].prior_source == "previous_estimate_recursive_roma_map_constrained"
         assert artifacts.scenarios[-2].frames[1].estimate_source == "matched_roma"
         assert artifacts.scenarios[-2].matched_frame_count == 2
-        assert artifacts.scenarios[-2].mean_match_score is not None
-        assert artifacts.scenarios[-2].estimate_source_counts["matched_roma"] == 2
-        assert artifacts.scenarios[-2].fallback_source_counts == {}
-        assert artifacts.scenarios[-2].frames[1].matcher_diagnostics is not None
-        assert artifacts.scenarios[-2].frames[1].matcher_diagnostics["inlier_count"] >= 48
-        assert artifacts.scenarios[-1].frames[1].prior_source == "previous_estimate_recursive_roma_map_constrained"
-        assert artifacts.scenarios[-1].frames[1].estimate_source == "matched_roma"
+        assert artifacts.scenarios[-1].frames[1].prior_source == "velocity_prediction_recursive_roma_likelihood"
         assert artifacts.scenarios[-1].matched_frame_count == 2
+        assert artifacts.scenarios[-1].frames[1].matcher_diagnostics is not None
+        assert "sequence_update_likelihood" in artifacts.scenarios[-1].frames[1].matcher_diagnostics
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -347,11 +354,11 @@ def test_map_constrained_roma_scenario_rejects_updates_outside_motion_gate() -> 
             roma_matcher=roma_matcher,
         )
 
-        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
-        assert artifacts.scenarios[-1].frames[0].estimate_source == "fallback_roma_temporal_motion_gate"
-        assert artifacts.scenarios[-1].matched_frame_count == 0
-        assert artifacts.scenarios[-1].fallback_source_counts["fallback_roma_temporal_motion_gate"] == 2
-        assert artifacts.scenarios[-1].frames[0].matcher_diagnostics is not None
+        assert artifacts.scenarios[-2].scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER
+        assert artifacts.scenarios[-2].frames[0].estimate_source == "fallback_roma_temporal_motion_gate"
+        assert artifacts.scenarios[-2].matched_frame_count == 0
+        assert artifacts.scenarios[-2].fallback_source_counts["fallback_roma_temporal_motion_gate"] == 2
+        assert artifacts.scenarios[-2].frames[0].matcher_diagnostics is not None
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 
@@ -387,6 +394,38 @@ def test_roma_temporal_gate_accepts_strong_large_recovery() -> None:
     assert accepted is True
     assert fallback_source is None
     assert diagnostics["temporal_weak_large_update_evidence"] == 0
+
+
+def test_roma_sequence_likelihood_rejects_low_probability_update() -> None:
+    diagnostics = {"inlier_ratio": 0.20, "inlier_spatial_coverage": 0.50}
+
+    accepted, fallback_source = evaluate_roma_sequence_likelihood(
+        update_distance_m=85.0,
+        prior_search_radius_m=28.0,
+        measurement_update_radius_m=5.0,
+        match_score=0.86,
+        diagnostics=diagnostics,
+    )
+
+    assert accepted is False
+    assert fallback_source == "fallback_roma_sequence_low_likelihood"
+    assert diagnostics["sequence_update_likelihood"] < diagnostics["sequence_min_likelihood"]
+
+
+def test_roma_sequence_likelihood_accepts_supported_motion_update() -> None:
+    diagnostics = {"inlier_ratio": 0.22, "inlier_spatial_coverage": 0.52}
+
+    accepted, fallback_source = evaluate_roma_sequence_likelihood(
+        update_distance_m=12.0,
+        prior_search_radius_m=28.0,
+        measurement_update_radius_m=5.0,
+        match_score=0.83,
+        diagnostics=diagnostics,
+    )
+
+    assert accepted is True
+    assert fallback_source is None
+    assert diagnostics["sequence_update_likelihood"] >= diagnostics["sequence_min_likelihood"]
 
 
 def test_constrain_prior_to_image_moves_offmap_crop_center() -> None:

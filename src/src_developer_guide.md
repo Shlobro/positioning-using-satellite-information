@@ -56,6 +56,12 @@ Current scope:
 - `satellite_drone_localization/eval/` now also centralizes RoMa temporal
   consistency checks in the sequence policy helpers, so accepted neural updates
   can be filtered against prior motion and evidence strength.
+- `satellite_drone_localization/eval/` now also writes sequence summaries and
+  debug SVGs through a dedicated artifact module, keeping the main evaluator
+  below the repository file-size limit as new scenarios are added.
+- RoMa-enabled sequence evaluation now also reports a velocity-predicted
+  likelihood scenario that carries a simple velocity estimate forward and logs
+  combined motion/evidence likelihood diagnostics for accepted dense matches.
 
 Guidelines:
 

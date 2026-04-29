@@ -109,3 +109,7 @@ Design notes:
   RoMa updates outside the current motion radius are rejected, and large jumps
   need stronger score, inlier-ratio, and spatial-coverage evidence before they
   can become the next recursive prior.
+- The RoMa sequence evaluator now also has a velocity-predicted likelihood
+  scenario. It predicts the next search prior from the last accepted velocity,
+  then records a combined motion/evidence likelihood so static thresholding can
+  be compared against a first sequence-state model.
