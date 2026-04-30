@@ -825,8 +825,18 @@ def build_estimate_update(
                         matcher_diagnostics,
                     )
                 if scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER:
+                    prediction_residual_east_m, prediction_residual_north_m = meters_offset_between(
+                        origin_latitude_deg=prior_latitude_deg,
+                        origin_longitude_deg=prior_longitude_deg,
+                        target_latitude_deg=estimated_latitude_deg,
+                        target_longitude_deg=estimated_longitude_deg,
+                    )
                     is_likely, fallback_source = evaluate_roma_sequence_likelihood(
                         update_distance_m=update_distance_m,
+                        predicted_residual_m=math.hypot(
+                            prediction_residual_east_m,
+                            prediction_residual_north_m,
+                        ),
                         prior_search_radius_m=prior_search_radius_m,
                         measurement_update_radius_m=measurement_update_radius_m,
                         match_score=decision.match_score,

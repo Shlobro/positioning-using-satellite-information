@@ -491,6 +491,99 @@ def test_velocity_likelihood_fallback_retains_previous_state_and_reports_drift()
         shutil.rmtree(repo_root, ignore_errors=True)
 
 
+def test_velocity_likelihood_rejects_prediction_inconsistent_candidate() -> None:
+    repo_root = make_repo_root()
+    try:
+        replay_path = repo_root / "capture.jsonl"
+        calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        frame_0001 = repo_root / "frame_0001.png"
+        frame_0002 = repo_root / "frame_0002.png"
+        frame_0003 = repo_root / "frame_0003.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0001, center_x=100, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0002, center_x=112, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0003, center_x=148, center_y=100)
+        write_jsonl(
+            replay_path,
+            [
+                {"packet_type": "session_start", "schema_version": "dev-packet-v1", "camera_hfov_deg": 84.0},
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:30Z",
+                    "image_name": "frame_0001.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:31Z",
+                    "image_name": "frame_0002.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.00112,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:32Z",
+                    "image_name": "frame_0003.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.00124,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+            ],
+        )
+        write_calibration(calibration_path, map_path)
+        roma_matcher = RoMaRegressionMatcher(
+            map_path,
+            backend=SequenceFakeRoMaBackend(
+                [
+                    (100.0, 100.0),
+                    (112.0, 100.0),
+                    (124.0, 100.0),
+                    (100.0, 100.0),
+                    (112.0, 100.0),
+                    (124.0, 100.0),
+                    (100.0, 100.0),
+                    (112.0, 100.0),
+                    (148.0, 100.0),
+                ]
+            ),
+            device="cpu",
+            model_name="roma_outdoor",
+        )
+
+        artifacts = build_sequence_search_artifacts(
+            load_replay_session(replay_path),
+            load_map_georeference(calibration_path),
+            max_speed_mps=40.0,
+            measurement_update_radius_m=5.0,
+            roma_matcher=roma_matcher,
+        )
+
+        velocity_scenario = artifacts.scenarios[-1]
+        fallback_frame = velocity_scenario.frames[2]
+        assert fallback_frame.estimate_source == "fallback_roma_sequence_low_likelihood"
+        assert fallback_frame.estimated_latitude_deg == fallback_frame.fallback_latitude_deg
+        assert fallback_frame.estimated_longitude_deg == fallback_frame.fallback_longitude_deg
+        assert fallback_frame.matcher_diagnostics is not None
+        assert fallback_frame.matcher_diagnostics["sequence_prediction_residual_m"] > 15.0
+        assert fallback_frame.matcher_diagnostics["sequence_prediction_likelihood"] < 0.1
+        assert velocity_scenario.fallback_source_counts["fallback_roma_sequence_low_likelihood"] == 1
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
 def test_roma_temporal_gate_rejects_weak_large_update() -> None:
     diagnostics = {"inlier_ratio": 0.13, "inlier_spatial_coverage": 0.36}
 
@@ -529,6 +622,7 @@ def test_roma_sequence_likelihood_rejects_low_probability_update() -> None:
 
     accepted, fallback_source = evaluate_roma_sequence_likelihood(
         update_distance_m=85.0,
+        predicted_residual_m=58.0,
         prior_search_radius_m=28.0,
         measurement_update_radius_m=5.0,
         match_score=0.86,
@@ -537,6 +631,7 @@ def test_roma_sequence_likelihood_rejects_low_probability_update() -> None:
 
     assert accepted is False
     assert fallback_source == "fallback_roma_sequence_low_likelihood"
+    assert diagnostics["sequence_prediction_residual_m"] == 58.0
     assert diagnostics["sequence_update_likelihood"] < diagnostics["sequence_min_likelihood"]
 
 
@@ -545,6 +640,7 @@ def test_roma_sequence_likelihood_accepts_supported_motion_update() -> None:
 
     accepted, fallback_source = evaluate_roma_sequence_likelihood(
         update_distance_m=12.0,
+        predicted_residual_m=4.0,
         prior_search_radius_m=28.0,
         measurement_update_radius_m=5.0,
         match_score=0.83,
@@ -554,6 +650,24 @@ def test_roma_sequence_likelihood_accepts_supported_motion_update() -> None:
     assert accepted is True
     assert fallback_source is None
     assert diagnostics["sequence_update_likelihood"] >= diagnostics["sequence_min_likelihood"]
+
+
+def test_roma_sequence_likelihood_rejects_strong_match_that_disagrees_with_prediction() -> None:
+    diagnostics = {"inlier_ratio": 0.24, "inlier_spatial_coverage": 0.57}
+
+    accepted, fallback_source = evaluate_roma_sequence_likelihood(
+        update_distance_m=18.0,
+        predicted_residual_m=19.0,
+        prior_search_radius_m=28.0,
+        measurement_update_radius_m=5.0,
+        match_score=0.91,
+        diagnostics=diagnostics,
+    )
+
+    assert accepted is False
+    assert fallback_source == "fallback_roma_sequence_low_likelihood"
+    assert diagnostics["sequence_motion_likelihood"] > 0.0
+    assert diagnostics["sequence_prediction_likelihood"] < 0.1
 
 
 def test_constrain_prior_to_image_moves_offmap_crop_center() -> None:

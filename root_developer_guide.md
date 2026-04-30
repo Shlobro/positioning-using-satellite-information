@@ -81,6 +81,9 @@ Current verification rule:
   recursive state: it can search from the velocity-predicted prior, but fallback
   retains the last accepted state and records prediction, fallback, and drift
   diagnostics in frame artifacts.
+- The velocity-likelihood gate now also penalizes RoMa candidates that disagree
+  with the velocity-predicted prior, so the next replay can measure whether
+  prediction-consistency fallbacks improve on the contained baseline.
 
 Guidelines:
 

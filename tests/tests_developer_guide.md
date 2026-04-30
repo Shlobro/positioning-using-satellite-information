@@ -65,6 +65,10 @@ Current scope:
 - sequence-search tests now also verify that a rejected velocity-likelihood
   prediction retains the previous accepted state and records prediction,
   fallback, and drift diagnostics in the frame artifact.
+- sequence-search tests now also verify that the velocity-likelihood gate can
+  reject a strong RoMa candidate specifically because it disagrees with the
+  velocity-predicted prior, and that this surfaces as
+  `fallback_roma_sequence_low_likelihood`.
 - sequence-comparison tests verify that completed sequence-search summaries can
   be reduced into JSON/CSV deltas for the RoMa temporal-gate versus
   velocity-likelihood decision, and that missing RoMa scenarios fail with a

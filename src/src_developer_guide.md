@@ -65,6 +65,9 @@ Current scope:
 - The velocity-predicted likelihood scenario now records explicit prediction,
   fallback-retention, and drift fields per frame, and failed velocity
   predictions no longer replace the last accepted state.
+- The velocity-likelihood gate now also penalizes RoMa candidates that disagree
+  materially with the velocity-predicted prior, so a strong visual match can
+  still fall back when it is inconsistent with the sequence-state prediction.
 - `satellite_drone_localization/eval/` now also includes a sequence-summary
   comparison helper that turns a completed RoMa replay artifact into JSON/CSV
   deltas for the map-constrained temporal gate versus velocity-likelihood

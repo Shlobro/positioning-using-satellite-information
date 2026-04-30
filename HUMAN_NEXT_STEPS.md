@@ -1,83 +1,37 @@
 # Human Next Steps
 
-This file describes the current human-run measurement step for the RoMa sequence-localization work.
+This file describes the current human-facing state after the latest RoMa
+sequence-localization measurement.
 
-## 1. Goal
+## 1. Current Decision
 
-Verify the containment slice, then remeasure whether the contained
-`recursive_roma_velocity_likelihood_matcher` improves on the current strongest
-RoMa baseline:
+The 2026-04-30 prediction-consistency replay is complete.
 
-- baseline: `recursive_roma_map_constrained_matcher`
-- candidate: `recursive_roma_velocity_likelihood_matcher`
+- verification passed with `verification_ok`
+- `recursive_roma_map_constrained_matcher` stayed strongest
+- `recursive_roma_velocity_likelihood_matcher` became clearly worse even after
+  the stricter likelihood gate
 
-The decision should use recorded artifacts, not manual memory.
+Measured result from the latest replay:
 
-## 2. Run The CUDA RoMa Replay
+- baseline: `53/92` matches, `4.60m` mean error
+- candidate: `23/92` matches, `14.09m` mean error
+- candidate low-likelihood fallbacks: `2`
+- comparison recommendation: `keep_map_constrained_temporal_gate_as_baseline`
 
-First run the required local verification harness from the repository root:
+## 2. What This Means
 
-```powershell
-.\scripts\run_pytest_isolation.bat
-```
+The current Roma velocity-likelihood branch is closed as a negative result.
+Do not spend more human time rerunning this branch unless a later code slice
+reopens it for a specific reason.
 
-Paste the output back. Success ends with:
+## 3. Human Action
 
-```text
-verification_ok
-```
+No additional human-run Roma replay is needed right now.
 
-Then run the replay.
-
-Use the Windows machine with CUDA, PyTorch CUDA, and `romatch` already installed.
-
-From the repository root, run:
-
-```powershell
-python scripts\sequence_search_replay.py `
-  --replay-file data\DEV-SESSION-20260427T112451Z\dev_packets_v1.jsonl `
-  --calibration-file "data\DEV-SESSION-20260427T112451Z\Frame from satellite\GIS system roof next to labs in college_calibration.json" `
-  --roma-model roma_outdoor `
-  --roma-device cuda `
-  --output-dir artifacts\manual-verification\sequence-search-roma-velocity-likelihood
-```
-
-Expected output artifacts:
+The next useful human action is to review the recorded artifacts if desired:
 
 - `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/sequence_search_summary.json`
-- `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/sequence_search_debug.svg`
-
-## 3. Generate The Comparison Report
-
-After the replay finishes, run:
-
-```powershell
-python scripts\compare_sequence_search.py `
-  --summary-file artifacts\manual-verification\sequence-search-roma-velocity-likelihood\sequence_search_summary.json
-```
-
-Expected comparison artifacts:
-
 - `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/sequence_search_comparison.json`
-- `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/sequence_search_comparison.csv`
 
-## 4. Paste Back The Evidence
-
-Paste the terminal output from both commands, especially these fields:
-
-- `recursive_roma_map_constrained_matcher`
-- `recursive_roma_velocity_likelihood_matcher`
-- mean error
-- max error
-- final error
-- matched frame count
-- fallback-source counts
-- comparison recommendation
-
-## 5. Decision Rule
-
-If velocity likelihood lowers mean error and max error without materially hurting final error or accepted updates, keep developing the sequence-state path.
-
-If it only helps one metric or rejects many updates, tune the likelihood thresholds before adding a fuller particle filter.
-
-If it is worse than the map-constrained temporal gate, keep the temporal-gate scenario as the baseline and investigate confidence calibration from the RoMa diagnostics.
+Otherwise, wait for the next AI slice to define the post-Roma direction.

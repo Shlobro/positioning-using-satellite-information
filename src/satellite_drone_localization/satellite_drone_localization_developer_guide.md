@@ -118,6 +118,10 @@ Design notes:
   state instead of committing the velocity prediction, while frame rows record
   the prediction distance, retained fallback state, state-update distance, and
   estimate-error delta from fallback.
+- The velocity-likelihood gate now uses both update distance from the retained
+  state and prediction residual from the velocity-centered prior. This keeps
+  high-score RoMa candidates from being accepted quietly when they disagree too
+  strongly with the predicted motion.
 - Sequence-summary comparison is now a first-class evaluation helper. It reads
   a completed replay summary and writes compact JSON/CSV deltas for the
   map-constrained RoMa temporal gate versus the velocity-likelihood scenario,

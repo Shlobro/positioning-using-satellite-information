@@ -99,6 +99,11 @@ Current scope:
   writes the previous accepted estimate back into recursive state and frame
   artifacts expose velocity-prior distance, fallback distance, state-update
   distance, and error delta from fallback.
+- The velocity-likelihood gate now also scores prediction residual, meaning the
+  accepted RoMa estimate is compared against the velocity-centered prior as
+  well as against the retained recursive state. This is intended to turn
+  high-error, prediction-inconsistent RoMa candidates into explicit
+  `fallback_roma_sequence_low_likelihood` evidence.
 - The sequence comparison helper defaults to comparing
   `recursive_roma_map_constrained_matcher` against
   `recursive_roma_velocity_likelihood_matcher`, reporting mean, max, final
