@@ -84,6 +84,17 @@ Current verification rule:
 - The velocity-likelihood gate now also penalizes RoMa candidates that disagree
   with the velocity-predicted prior, so the next replay can measure whether
   prediction-consistency fallbacks improve on the contained baseline.
+- The repository now ships an interactive localization GUI under
+  `tools/localization_gui/` (PyQt6 + pyqtgraph). It exposes the same matcher
+  and sequence-search pipelines as the offline evaluator in a real-time
+  demo/research surface, so single-image and full-replay localization runs can
+  be inspected visually with predicted location, search-radius circle,
+  confidence heatmap, and warped query overlay on top of a calibrated
+  satellite tile. The GUI now runs matcher work on a background Qt worker and
+  surfaces an indeterminate busy bar while a run is active, so long matcher or
+  replay calls no longer freeze the window. Single-image inputs require a
+  `<image>_packet.json` sidecar in `dev-packet-v1` shape so the GUI shares one
+  metadata format with replay files.
 
 Guidelines:
 

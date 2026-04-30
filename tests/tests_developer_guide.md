@@ -73,6 +73,18 @@ Current scope:
   be reduced into JSON/CSV deltas for the RoMa temporal-gate versus
   velocity-likelihood decision, and that missing RoMa scenarios fail with a
   clear rerun instruction.
+- localization-gui tests cover only the headless adapter modules under
+  `tools/localization_gui/` (single-image sidecar loader and pipeline runner).
+  They verify that single-image inputs require a `<image>_packet.json`
+  sidecar in `dev-packet-v1` shape with exactly one frame whose `image_name`
+  matches the picked file, that the placeholder pipeline returns a one-frame
+  result with truth metrics against a synthetic calibrated map, and that the
+  image-baseline pipeline produces a coarse score-grid heatmap. They also
+  verify that the typed `RunRequest` dispatch path covers both single-image
+  and sequence execution, so the GUI's background-worker handoff stays
+  measurable without requiring a real Qt display. GUI rendering itself is not
+  tested; verify visually by running
+  `tools/localization_gui/launch_localization_gui.bat`.
 
 Guidelines:
 
