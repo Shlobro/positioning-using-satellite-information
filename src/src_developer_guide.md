@@ -43,6 +43,10 @@ Current scope:
   RoMa-backed neural matcher path that is enabled only when the caller asks
   for it, so pretrained benchmarking does not bloat the default verification
   flow.
+- `satellite_drone_localization/eval/neural_matchers/` now holds an optional
+  EfficientLoFTR-style matcher path. It is enabled only with an explicit
+  external repository and checkpoint path so the default package remains free
+  of heavyweight neural dependencies.
 - The optional RoMa matcher now rejects geometrically weak dense matches when
   the fitted footprint scale is implausible or the inlier support covers only a
   tiny patch of the frame.
@@ -59,6 +63,9 @@ Current scope:
 - `satellite_drone_localization/eval/` now also writes sequence summaries and
   debug SVGs through a dedicated artifact module, keeping the main evaluator
   below the repository file-size limit as new scenarios are added.
+- Sequence scenario descriptions now live in `sequence_scenarios.py`, keeping
+  the state-transition evaluator below the repository file-size limit as new
+  benchmark scenarios are added.
 - RoMa-enabled sequence evaluation now also reports a velocity-predicted
   likelihood scenario that carries a simple velocity estimate forward and logs
   combined motion/evidence likelihood diagnostics for accepted dense matches.

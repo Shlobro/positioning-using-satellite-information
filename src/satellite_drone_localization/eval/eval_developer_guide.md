@@ -17,12 +17,21 @@ Current scope:
   to neural approaches.
 - `matcher_roma.py` holds the optional pretrained RoMa benchmark path used to
   compare recursive tracking against the classical and raster baselines.
+- `neural_matchers/matcher_loftr.py` holds the optional EfficientLoFTR-style
+  dense matcher benchmark path used to test whether RoMa itself is the
+  limiting neural matcher family.
 - `sequence_policy.py` holds reusable map-boundary policy helpers for
   boundary-aware recursive search experiments and RoMa temporal consistency
   gates.
+- `sequence_scenarios.py` holds scenario descriptions so the main evaluator
+  stays focused on state transitions and remains below the repository file
+  size limit.
 - `sequence_artifacts.py` writes sequence-search JSON summaries and debug SVGs
   so report formatting stays separate from the main evaluator as scenario count
   grows.
+- `sequence_artifacts.py` must include a debug-SVG style entry for every
+  scenario name emitted by the evaluator; otherwise a completed benchmark can
+  fail after summary generation while rendering the SVG.
 - `sequence_search_cli.py` writes replay-driven JSON and SVG artifacts for that
   sequence evaluation slice.
 - `reports/` contains derived report helpers. Its sequence-comparison workflow
@@ -81,6 +90,10 @@ Current scope:
   map-limited crop and motion-envelope guard used by the constrained raster
   scenario. This keeps boundary-policy results separate from the original RoMa
   benchmark.
+- When LoFTR-family matching is enabled, the evaluator also reports
+  `recursive_loftr_map_constrained_matcher`, which reuses the same
+  map-constrained crop policy and temporal gate as the current RoMa baseline
+  for a clean matcher-family comparison.
 - Each sequence scenario now also reports `estimate_source_counts` and
   `fallback_source_counts` in the JSON artifact, so replay comparisons can be
   tuned from aggregate failure modes before inspecting individual frames.

@@ -339,3 +339,21 @@
 - intent: Keep the localization GUI responsive during single-image and replay runs by moving pipeline execution off the Qt UI thread and surfacing an explicit running state.
 - linked run_ids: none
 - actual result: The GUI now dispatches localization work through a typed `RunRequest` on a background `QThread` worker instead of running matchers directly inside the button-click handler. While the worker is active, the sidebar disables mutating inputs, changes the button text to `Running…`, and shows an indeterminate progress bar so long runs no longer look frozen. Headless tests now also cover the shared run-dispatch path for both single-image and sequence modes. Required local batch verification still needs to be run by the user.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/neural_matchers/`, `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/sequence_scenarios.py`, `src/satellite_drone_localization/eval/sequence_search_cli.py`, `src/satellite_drone_localization/eval/__init__.py`, `tests/test_matcher_loftr.py`, `tests/test_sequence_search.py`, developer guides, `HUMAN_NEXT_STEPS.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add an optional non-RoMa dense matcher benchmark path against the current `recursive_roma_map_constrained_matcher` baseline without adding a mandatory dependency.
+- linked run_ids: none yet
+- actual result: Added `recursive_loftr_map_constrained_matcher`, backed by an injected fake backend for deterministic tests and by explicit external EfficientLoFTR checkout/checkpoint CLI flags for real CUDA measurement. The candidate reuses the map-constrained search policy and the same temporal consistency gate as the RoMa map-constrained baseline. EfficientLoFTR licensing was checked from the primary GitHub repository, which lists Apache-2.0. Syntax compilation passed for `src`, `tests`, and `scripts`; targeted fake-backend checks passed in the agent session. Required local verification passed after the change with `scripts/run_pytest_isolation.bat`, ending in `verification_ok` on Python `3.12.4`. The DEV-session measured replay still needs an EfficientLoFTR checkout and `eloftr_outdoor.ckpt`.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/neural_matchers/matcher_loftr.py`, `src/satellite_drone_localization/eval/neural_matchers/neural_matchers_developer_guide.md`, `experiments/change-log.md`
+- intent: Make the optional EfficientLoFTR adapter compatible with PyTorch 2.6+ checkpoint-loading defaults.
+- linked run_ids: none yet
+- actual result: The user reached checkpoint loading and hit PyTorch's `weights_only=True` default rejection for PyTorch Lightning checkpoint metadata. The adapter now loads the explicitly provided EfficientLoFTR checkpoint with `weights_only=False`, documented as trusted-checkpoint-only behavior. Required local verification should be rerun after the replay setup succeeds.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/sequence_artifacts.py`, `src/satellite_drone_localization/eval/eval_developer_guide.md`, `experiments/change-log.md`
+- intent: Fix debug-SVG rendering for the new LoFTR sequence scenario after the first real replay reached artifact writing.
+- linked run_ids: manual `sequence-search-loftr-benchmark`
+- actual result: The combined RoMa plus LoFTR replay produced `sequence_search_summary.json`, then failed with a `KeyError` because `recursive_loftr_map_constrained_matcher` had no SVG style entry. The SVG writer now includes a LoFTR style, so rerunning can finish the artifact set and print the scenario rows. The summary was still usable: `recursive_roma_map_constrained_matcher` reached `53/92` matches and `4.60m` mean error, while `recursive_loftr_map_constrained_matcher` accepted `0/92` updates and reached `11.64m` mean error with `fallback_loftr_insufficient_matches: 91` and `fallback_loftr_weak_inlier_support: 1`.

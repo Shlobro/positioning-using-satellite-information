@@ -73,6 +73,10 @@ Current verification rule:
   likelihood scenario that compares simple sequence-state prediction and a
   combined motion/evidence likelihood against the static map-constrained RoMa
   temporal gate.
+- The sequence-search CLI now also supports an optional EfficientLoFTR-style
+  candidate through explicit external checkout/checkpoint flags. This adds
+  `recursive_loftr_map_constrained_matcher` without adding a mandatory
+  dependency or changing the default verifier.
 - The current measurement handoff is to run the CUDA RoMa replay, then run
   `scripts/compare_sequence_search.py` on the generated summary so the
   velocity-likelihood scenario is judged from recorded deltas rather than from

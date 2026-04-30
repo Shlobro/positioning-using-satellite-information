@@ -1,37 +1,35 @@
 # Human Next Steps
 
-This file describes the current human-facing state after the latest RoMa
-sequence-localization measurement.
+This file describes the current human-facing state after measuring the optional
+LoFTR-family sequence-localization benchmark path.
 
 ## 1. Current Decision
 
-The 2026-04-30 prediction-consistency replay is complete.
+The optional non-RoMa dense matcher slice is implemented and measured once on
+the DEV session.
 
-- verification passed with `verification_ok`
-- `recursive_roma_map_constrained_matcher` stayed strongest
-- `recursive_roma_velocity_likelihood_matcher` became clearly worse even after
-  the stricter likelihood gate
+- `recursive_roma_map_constrained_matcher` remains the current measured neural
+  baseline at `4.60m` mean error from the latest relevant run
+- `recursive_loftr_map_constrained_matcher` is now available behind explicit
+  external checkout/checkpoint CLI flags
+- the first real LoFTR run accepted `0/92` updates and reached `11.64m` mean
+  error
+- required local batch verification passed with `verification_ok` on Python
+  `3.12.4`
 
-Measured result from the latest replay:
+Decision rule for the next real replay:
 
-- baseline: `53/92` matches, `4.60m` mean error
-- candidate: `23/92` matches, `14.09m` mean error
-- candidate low-likelihood fallbacks: `2`
-- comparison recommendation: `keep_map_constrained_temporal_gate_as_baseline`
+- `recursive_loftr_map_constrained_matcher` did not beat `4.60m`, so stop
+  pretrained dense matcher swaps for now and move to a different improvement
+  class
 
 ## 2. What This Means
 
-The current Roma velocity-likelihood branch is closed as a negative result.
-Do not spend more human time rerunning this branch unless a later code slice
-reopens it for a specific reason.
+The RoMa map-constrained temporal-gate scenario remains the neural baseline.
+The LoFTR path remains available for future diagnostics, but it is not the next
+baseline candidate.
 
 ## 3. Human Action
 
-No additional human-run Roma replay is needed right now.
-
-The next useful human action is to review the recorded artifacts if desired:
-
-- `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/sequence_search_summary.json`
-- `artifacts/manual-verification/sequence-search-roma-velocity-likelihood/sequence_search_comparison.json`
-
-Otherwise, wait for the next AI slice to define the post-Roma direction.
+No additional LoFTR setup is needed right now. The next AI slice should choose
+a non-dense-matcher-swap improvement class.

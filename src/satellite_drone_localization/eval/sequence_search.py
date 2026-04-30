@@ -15,6 +15,7 @@ from ..packet_replay import ReplaySession
 from .matcher_classical import ClassicalFeatureMatcher
 from .matcher_image_baseline import ImageBaselineMatcher
 from .matcher_roma import RoMaRegressionMatcher
+from .neural_matchers.matcher_loftr import LoFTRRegressionMatcher
 from .matcher_placeholder import build_truth_anchored_placeholder_match
 from .sequence_artifacts import write_sequence_search_debug_svg, write_sequence_search_summary
 from .sequence_policy import (
@@ -25,6 +26,7 @@ from .sequence_policy import (
     evaluate_roma_temporal_consistency,
     offset_latlon_by_meters,
 )
+from .sequence_scenarios import describe_scenario
 
 
 SCENARIO_SEED_ONLY = "seed_only"
@@ -37,6 +39,7 @@ SCENARIO_RECURSIVE_CLASSICAL_MATCHER = "recursive_classical_matcher"
 SCENARIO_RECURSIVE_ROMA_MATCHER = "recursive_roma_matcher"
 SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER = "recursive_roma_map_constrained_matcher"
 SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER = "recursive_roma_velocity_likelihood_matcher"
+SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER = "recursive_loftr_map_constrained_matcher"
 SCENARIO_NAMES = (
     SCENARIO_SEED_ONLY,
     SCENARIO_ORACLE_PREVIOUS_TRUTH,
@@ -48,6 +51,7 @@ SCENARIO_NAMES = (
     SCENARIO_RECURSIVE_ROMA_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
     SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
+    SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
 )
 
 
@@ -164,6 +168,7 @@ def build_sequence_search_artifacts(
     base_search_radius_m: float = 0.0,
     measurement_update_radius_m: float = 5.0,
     roma_matcher: RoMaRegressionMatcher | None = None,
+    loftr_matcher: LoFTRRegressionMatcher | None = None,
 ) -> SequenceSearchArtifacts:
     """Evaluate multiple motion-bounded prior scenarios for one replay session."""
     if max_speed_mps <= 0.0:
@@ -303,6 +308,21 @@ def build_sequence_search_artifacts(
                 roma_matcher=roma_matcher,
             )
         )
+    if loftr_matcher is not None:
+        scenarios.append(
+            build_sequence_scenario_report(
+                scenario_name=SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
+                session=session,
+                georeference=georeference,
+                timestamps=timestamps,
+                first_timestamp=first_timestamp,
+                geometry_report=geometry_report.frames,
+                max_speed_mps=max_speed_mps,
+                base_search_radius_m=base_search_radius_m,
+                measurement_update_radius_m=measurement_update_radius_m,
+                loftr_matcher=loftr_matcher,
+            )
+        )
 
     return SequenceSearchArtifacts(
         session_id=session.session_id,
@@ -316,7 +336,7 @@ def build_sequence_search_artifacts(
         max_speed_mps=max_speed_mps,
         base_search_radius_m=base_search_radius_m,
         measurement_update_radius_m=measurement_update_radius_m,
-        neural_matcher_name=roma_matcher.model_name if roma_matcher is not None else None,
+        neural_matcher_name=_build_neural_matcher_name(roma_matcher=roma_matcher, loftr_matcher=loftr_matcher),
         scenarios=scenarios,
     )
 
@@ -335,6 +355,7 @@ def build_sequence_scenario_report(
     image_baseline_matcher: ImageBaselineMatcher | None = None,
     classical_feature_matcher: ClassicalFeatureMatcher | None = None,
     roma_matcher: RoMaRegressionMatcher | None = None,
+    loftr_matcher: LoFTRRegressionMatcher | None = None,
 ) -> SequenceScenarioReport:
     """Evaluate one sequence-prior scenario."""
     if scenario_name not in SCENARIO_NAMES:
@@ -397,6 +418,8 @@ def build_sequence_scenario_report(
                     north_m=estimated_velocity_north_mps * delta_seconds,
                 )
                 prior_source = "velocity_prediction_recursive_roma_likelihood"
+            elif scenario_name == SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER:
+                prior_source = "previous_estimate_recursive_loftr_map_constrained"
             else:
                 prior_source = "previous_estimate_recursive_classical"
             prior_search_radius_m = estimated_confidence_radius_m + (max_speed_mps * delta_seconds)
@@ -494,6 +517,7 @@ def build_sequence_scenario_report(
             image_baseline_matcher=image_baseline_matcher,
             classical_feature_matcher=classical_feature_matcher,
             roma_matcher=roma_matcher,
+            loftr_matcher=loftr_matcher,
             crop_min_x=crop_min_x,
             crop_min_y=crop_min_y,
             crop_max_x=crop_max_x,
@@ -581,6 +605,7 @@ def build_sequence_scenario_report(
             SCENARIO_RECURSIVE_ROMA_MATCHER,
             SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
             SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
+            SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
         ):
             if (
                 scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER
@@ -661,6 +686,7 @@ def build_estimate_update(
     image_baseline_matcher: ImageBaselineMatcher | None,
     classical_feature_matcher: ClassicalFeatureMatcher | None,
     roma_matcher: RoMaRegressionMatcher | None,
+    loftr_matcher: LoFTRRegressionMatcher | None,
     crop_min_x: float,
     crop_min_y: float,
     crop_max_x: float,
@@ -769,10 +795,30 @@ def build_estimate_update(
             measurement_update_radius_m=measurement_update_radius_m,
             georeference_max_residual_m=georeference.max_residual_m,
         )
-    else:
+    elif scenario_name in (
+        SCENARIO_RECURSIVE_ROMA_MATCHER,
+        SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+        SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
+    ):
         if roma_matcher is None:
             raise ValueError("roma_matcher is required for recursive RoMa scenario")
         decision = roma_matcher.match_frame(
+            frame_image_path=frame.image_path,
+            normalization_rotation_deg=geometry.normalization_rotation_deg,
+            ground_width_px=ground_width_px,
+            ground_height_px=ground_height_px,
+            crop_min_x=crop_min_x,
+            crop_min_y=crop_min_y,
+            crop_max_x=crop_max_x,
+            crop_max_y=crop_max_y,
+            crop_inside_image=crop_inside_image,
+            measurement_update_radius_m=measurement_update_radius_m,
+            georeference_max_residual_m=georeference.max_residual_m,
+        )
+    else:
+        if loftr_matcher is None:
+            raise ValueError("loftr_matcher is required for recursive LoFTR scenario")
+        decision = loftr_matcher.match_frame(
             frame_image_path=frame.image_path,
             normalization_rotation_deg=geometry.normalization_rotation_deg,
             ground_width_px=ground_width_px,
@@ -803,6 +849,7 @@ def build_estimate_update(
             if scenario_name in (
                 SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
                 SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
+                SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
             ):
                 matcher_diagnostics = dict(decision_diagnostics or {})
                 accepted_diagnostics = matcher_diagnostics
@@ -814,6 +861,8 @@ def build_estimate_update(
                     diagnostics=matcher_diagnostics,
                 )
                 if not is_consistent:
+                    if scenario_name == SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER and fallback_source:
+                        fallback_source = fallback_source.replace("fallback_roma_", "fallback_loftr_")
                     fallback_confidence_radius_m = max(prior_search_radius_m, measurement_update_radius_m)
                     return (
                         fallback_source or "fallback_roma_temporal_inconsistent_update",
@@ -886,55 +935,6 @@ def build_estimate_update(
     )
 
 
-def describe_scenario(scenario_name: str) -> str:
-    """Return the human-readable scenario description."""
-    if scenario_name == SCENARIO_SEED_ONLY:
-        return "Use frame-0 truth as the only seed and grow the search radius over total elapsed time."
-    if scenario_name == SCENARIO_ORACLE_PREVIOUS_TRUTH:
-        return "Upper-bound ceiling that recenters on the previous frame truth and grows radius only over per-frame delta time."
-    if scenario_name == SCENARIO_RECURSIVE_ORACLE_ESTIMATE:
-        return (
-            "Stateful prior loop that recenters on the previous accepted estimate "
-            "(oracle stand-in uses hidden truth) and carries a configurable post-update confidence radius."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER:
-        return (
-            "Stateful prior loop that feeds back a deterministic truth-anchored placeholder "
-            "measurement instead of a perfect oracle update, so drift can be measured before a real matcher exists."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER:
-        return (
-            "Stateful prior loop that feeds back a simple real image-template baseline "
-            "measured inside the calibrated satellite crop, so recursive tracking can be compared against placeholder and oracle scenarios."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER:
-        return (
-            "Stateful image-baseline loop that shifts the search center back into the calibrated map bounds when possible, "
-            "so map-boundary persistence can be measured without changing the original raster baseline."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_CLASSICAL_MATCHER:
-        return (
-            "Stateful prior loop that feeds back a classical local-feature matcher "
-            "inside the calibrated satellite crop, so a stronger non-neural baseline can be compared against the raster baseline and oracle ceilings."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_ROMA_MATCHER:
-        return (
-            "Stateful prior loop that feeds back a pretrained RoMa matcher "
-            "inside the calibrated satellite crop, so the first neural baseline can be compared directly against the classical and raster baselines."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER:
-        return (
-            "Stateful RoMa loop that shifts the search center back into the calibrated map bounds when possible, "
-            "so the neural benchmark can test whether boundary-aware bootstrap policy improves persistence."
-        )
-    if scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER:
-        return (
-            "Stateful RoMa loop that predicts the next prior from the previous accepted velocity and rejects accepted "
-            "updates with low combined motion and matcher-evidence likelihood."
-        )
-    raise ValueError(f"unsupported scenario_name '{scenario_name}'")
-
-
 def longest_true_streak(values) -> int:
     """Return the longest consecutive streak of truthy values."""
     longest = 0
@@ -956,6 +956,7 @@ def is_match_source(source: str) -> bool:
         "matched_image_baseline",
         "matched_classical_feature",
         "matched_roma",
+        "matched_loftr",
     }
 
 
@@ -970,7 +971,21 @@ def is_map_constrained_scenario(scenario_name: str) -> bool:
         SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
         SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
         SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
+        SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
     }
+
+
+def _build_neural_matcher_name(
+    *,
+    roma_matcher: RoMaRegressionMatcher | None,
+    loftr_matcher: LoFTRRegressionMatcher | None,
+) -> str | None:
+    names = []
+    if roma_matcher is not None:
+        names.append(roma_matcher.model_name)
+    if loftr_matcher is not None:
+        names.append(loftr_matcher.model_name)
+    return ",".join(names) if names else None
 
 
 def _parse_timestamp(value: str) -> datetime:

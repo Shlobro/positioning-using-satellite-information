@@ -28,6 +28,10 @@ Guidelines:
 - `sequence_search_replay.py` now also accepts `--roma-model` and
   `--roma-device` so a pretrained RoMa benchmark can be added to the artifact
   set when explicitly requested, without changing the default local verifier.
+- `sequence_search_replay.py` now also accepts explicit `--loftr-repo-path`
+  and `--loftr-checkpoint` flags so an external Apache-2.0 EfficientLoFTR
+  checkout can be benchmarked as `recursive_loftr_map_constrained_matcher`
+  without adding a mandatory dependency.
 - `compare_sequence_search.py` reads a completed `sequence_search_summary.json`
   and writes JSON/CSV deltas comparing the map-constrained RoMa temporal-gate
   scenario against the velocity-likelihood RoMa scenario.

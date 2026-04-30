@@ -34,6 +34,9 @@ Current responsibilities:
   pretrained neural benchmark can run inside the same recursive crop and
   prior-update interface without becoming mandatory for the default repo
   verification path
+- support an optional EfficientLoFTR-style matcher in the `eval/` subpackage
+  so a non-RoMa dense matcher family can be measured against the same
+  map-constrained recursive policy and temporal gate
 - reject RoMa updates whose fitted transform is geometrically implausible or
   whose inlier support is spatially degenerate, so false positives fail with
   explicit fallback reasons instead of becoming confident recursive state
@@ -126,3 +129,7 @@ Design notes:
   a completed replay summary and writes compact JSON/CSV deltas for the
   map-constrained RoMa temporal gate versus the velocity-likelihood scenario,
   without rerunning the heavy neural matcher.
+- The LoFTR-family benchmark is deliberately dependency-light in this repo:
+  deterministic tests use an injected fake backend, while real measurements
+  require explicit CLI paths to an external Apache-2.0 EfficientLoFTR checkout
+  and checkpoint.

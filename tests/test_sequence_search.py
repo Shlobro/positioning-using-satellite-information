@@ -11,6 +11,7 @@ from satellite_drone_localization.eval.sequence_search import (
     SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
     SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
+    SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
     SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
     SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MATCHER,
@@ -24,6 +25,7 @@ from satellite_drone_localization.eval.sequence_search import (
     write_sequence_search_summary,
 )
 from satellite_drone_localization.eval.matcher_roma import RoMaRegressionMatcher
+from satellite_drone_localization.eval.neural_matchers.matcher_loftr import LoFTRRegressionMatcher
 from satellite_drone_localization.eval.sequence_policy import (
     constrain_prior_to_image,
     estimate_map_limited_square_side_m,
@@ -60,6 +62,34 @@ class FakeRoMaBackend:
             frame_points.append([local_x, local_y])
             crop_points.append([local_x + offset_x, local_y + offset_y])
         return np.asarray(frame_points, dtype=np.float32), np.asarray(crop_points, dtype=np.float32)
+
+
+class FakeLoFTRBackend:
+    def __init__(self, center_x: float, center_y: float) -> None:
+        self.center_x = center_x
+        self.center_y = center_y
+
+    def match_keypoints(self, image_a, image_b, *, device: str):
+        import numpy as np
+
+        width_a, height_a = image_a.size
+        width_b, height_b = image_b.size
+        center_x = (width_b / 2.0) if self.center_x < 0.0 else self.center_x
+        center_y = (height_b / 2.0) if self.center_y < 0.0 else self.center_y
+        frame_points: list[list[float]] = []
+        crop_points: list[list[float]] = []
+        offset_x = center_x - (width_a / 2.0)
+        offset_y = center_y - (height_a / 2.0)
+        for index in range(128):
+            local_x = float((index * 17) % max(1, width_a - 1))
+            local_y = float((index * 11) % max(1, height_a - 1))
+            frame_points.append([local_x, local_y])
+            crop_points.append([local_x + offset_x, local_y + offset_y])
+        return (
+            np.asarray(frame_points, dtype=np.float32),
+            np.asarray(crop_points, dtype=np.float32),
+            np.full((128,), 0.82, dtype=np.float32),
+        )
 
 
 class SequenceFakeRoMaBackend:
@@ -391,6 +421,71 @@ def test_map_constrained_roma_scenario_rejects_updates_outside_motion_gate() -> 
         assert artifacts.scenarios[-2].matched_frame_count == 0
         assert artifacts.scenarios[-2].fallback_source_counts["fallback_roma_temporal_motion_gate"] == 2
         assert artifacts.scenarios[-2].frames[0].matcher_diagnostics is not None
+    finally:
+        shutil.rmtree(repo_root, ignore_errors=True)
+
+
+def test_build_sequence_search_artifacts_adds_optional_loftr_candidate() -> None:
+    repo_root = make_repo_root()
+    try:
+        replay_path = repo_root / "capture.jsonl"
+        calibration_path = repo_root / "map_calibration.json"
+        map_path = repo_root / "map.png"
+        frame_0001 = repo_root / "frame_0001.png"
+        frame_0002 = repo_root / "frame_0002.png"
+        write_synthetic_map_image(map_path)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0001, center_x=100, center_y=100)
+        write_frame_from_map(map_path=map_path, frame_path=frame_0002, center_x=112, center_y=100)
+        write_jsonl(
+            replay_path,
+            [
+                {"packet_type": "session_start", "schema_version": "dev-packet-v1", "camera_hfov_deg": 84.0},
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:30Z",
+                    "image_name": "frame_0001.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.0010,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+                {
+                    "packet_type": "frame",
+                    "timestamp_utc": "2026-04-20T10:15:31Z",
+                    "image_name": "frame_0002.png",
+                    "latitude_deg": 30.9990,
+                    "longitude_deg": 35.00112,
+                    "altitude_m": 16.66,
+                    "heading_deg": 0.0,
+                    "frame_width_px": 192,
+                    "frame_height_px": 108,
+                },
+            ],
+        )
+        write_calibration(calibration_path, map_path)
+        loftr_matcher = LoFTRRegressionMatcher(
+            map_path,
+            backend=FakeLoFTRBackend(center_x=-1.0, center_y=-1.0),
+            device="cpu",
+        )
+
+        artifacts = build_sequence_search_artifacts(
+            load_replay_session(replay_path),
+            load_map_georeference(calibration_path),
+            max_speed_mps=25.0,
+            measurement_update_radius_m=5.0,
+            loftr_matcher=loftr_matcher,
+        )
+
+        assert artifacts.neural_matcher_name == "efficientloftr_outdoor"
+        assert artifacts.scenarios[-1].scenario_name == SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER
+        assert artifacts.scenarios[-1].frames[1].prior_source == "previous_estimate_recursive_loftr_map_constrained"
+        assert artifacts.scenarios[-1].frames[1].estimate_source == "matched_loftr"
+        assert artifacts.scenarios[-1].matched_frame_count == 2
+        assert artifacts.scenarios[-1].frames[1].matcher_diagnostics is not None
+        assert artifacts.scenarios[-1].frames[1].matcher_diagnostics["inlier_count"] >= 48
     finally:
         shutil.rmtree(repo_root, ignore_errors=True)
 

@@ -83,6 +83,7 @@ def write_sequence_search_debug_svg(path: Path, artifacts) -> None:
         "recursive_roma_matcher": ("#264653", "#bde0d8"),
         "recursive_roma_map_constrained_matcher": ("#006d77", "#caf0f8"),
         "recursive_roma_velocity_likelihood_matcher": ("#bc4749", "#ffd6d6"),
+        "recursive_loftr_map_constrained_matcher": ("#5a189a", "#e0aaff"),
     }
     overlay_parts: list[str] = []
     for scenario in artifacts.scenarios:

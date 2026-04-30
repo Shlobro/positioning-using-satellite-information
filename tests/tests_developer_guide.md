@@ -37,6 +37,10 @@ Current scope:
 - matcher-roma tests verify the optional RoMa matcher can recover a synthetic
   crop center through an injected fake backend and reject low-texture inputs
   without requiring real model downloads during repo verification.
+- matcher-loftr tests verify the optional EfficientLoFTR-style matcher can
+  recover a synthetic crop center and reject low-confidence matches through an
+  injected fake backend without requiring real model downloads during repo
+  verification.
 - matcher-roma tests now also verify false-positive rejection for spatially
   degenerate inlier support and implausible fitted scale using injected fake
   backends.
@@ -53,6 +57,9 @@ Current scope:
   matcher adds both `recursive_roma_matcher` and
   `recursive_roma_map_constrained_matcher` while preserving the default
   verifier behavior when RoMa is disabled.
+- sequence-search tests now also verify that an explicitly injected
+  LoFTR-family matcher adds `recursive_loftr_map_constrained_matcher` while
+  preserving the default verifier behavior when LoFTR is disabled.
 - sequence-search tests now also verify per-scenario estimate-source counts,
   fallback-source counts, and that RoMa diagnostics flow into frame artifacts.
 - sequence-search tests now also verify the RoMa temporal gate rejects weak

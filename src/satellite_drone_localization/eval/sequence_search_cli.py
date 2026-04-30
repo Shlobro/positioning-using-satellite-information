@@ -8,6 +8,7 @@ from pathlib import Path
 from ..map_georeference import load_map_georeference
 from ..packet_replay import load_replay_session
 from .matcher_roma import RoMaRegressionMatcher
+from .neural_matchers.matcher_loftr import LoFTRRegressionMatcher
 from .sequence_search import build_sequence_search_artifacts, write_sequence_search_debug_svg, write_sequence_search_summary
 
 
@@ -63,6 +64,37 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Device for the optional RoMa benchmark scenario. Defaults to auto.",
     )
+    parser.add_argument(
+        "--loftr-repo-path",
+        default=None,
+        help=(
+            "Optional path to an external Apache-2.0 zju3dv/EfficientLoFTR checkout. "
+            "When set with --loftr-checkpoint, adds recursive_loftr_map_constrained_matcher."
+        ),
+    )
+    parser.add_argument(
+        "--loftr-checkpoint",
+        default=None,
+        help="Optional EfficientLoFTR checkpoint path for the LoFTR-family benchmark.",
+    )
+    parser.add_argument(
+        "--loftr-device",
+        choices=("auto", "cpu", "cuda"),
+        default="auto",
+        help="Device for the optional LoFTR-family benchmark scenario. Defaults to auto.",
+    )
+    parser.add_argument(
+        "--loftr-model-type",
+        choices=("full", "opt"),
+        default="full",
+        help="EfficientLoFTR model configuration to use when --loftr-repo-path is set. Defaults to full.",
+    )
+    parser.add_argument(
+        "--loftr-precision",
+        choices=("fp32", "mp", "fp16"),
+        default="fp32",
+        help="EfficientLoFTR inference precision. Defaults to fp32.",
+    )
     return parser
 
 
@@ -81,6 +113,18 @@ def main(argv: list[str] | None = None) -> int:
             model_name=args.roma_model,
             device=args.roma_device,
         )
+    loftr_matcher = None
+    if args.loftr_repo_path is not None or args.loftr_checkpoint is not None:
+        if args.loftr_repo_path is None or args.loftr_checkpoint is None:
+            parser.error("--loftr-repo-path and --loftr-checkpoint must be provided together")
+        loftr_matcher = LoFTRRegressionMatcher(
+            georeference.image_path,
+            repo_path=Path(args.loftr_repo_path).resolve(),
+            checkpoint_path=Path(args.loftr_checkpoint).resolve(),
+            device=args.loftr_device,
+            model_type=args.loftr_model_type,
+            precision=args.loftr_precision,
+        )
     artifacts = build_sequence_search_artifacts(
         session,
         georeference,
@@ -88,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         base_search_radius_m=args.base_search_radius_m,
         measurement_update_radius_m=args.measurement_update_radius_m,
         roma_matcher=roma_matcher,
+        loftr_matcher=loftr_matcher,
     )
 
     if args.output_dir:
