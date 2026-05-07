@@ -26,6 +26,7 @@ from .sequence_policy import (
     evaluate_roma_temporal_consistency,
     offset_latlon_by_meters,
 )
+from .sequence_roma_candidates import evaluate_roma_multicandidate_update
 from .sequence_scenarios import describe_scenario
 
 
@@ -38,6 +39,7 @@ SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER = "recursive_image_map_constrai
 SCENARIO_RECURSIVE_CLASSICAL_MATCHER = "recursive_classical_matcher"
 SCENARIO_RECURSIVE_ROMA_MATCHER = "recursive_roma_matcher"
 SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER = "recursive_roma_map_constrained_matcher"
+SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER = "recursive_roma_multicandidate_map_constrained_matcher"
 SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER = "recursive_roma_velocity_likelihood_matcher"
 SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER = "recursive_loftr_map_constrained_matcher"
 SCENARIO_NAMES = (
@@ -50,6 +52,7 @@ SCENARIO_NAMES = (
     SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MATCHER,
     SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+    SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER,
     SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
     SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
 )
@@ -169,6 +172,8 @@ def build_sequence_search_artifacts(
     measurement_update_radius_m: float = 5.0,
     roma_matcher: RoMaRegressionMatcher | None = None,
     loftr_matcher: LoFTRRegressionMatcher | None = None,
+    on_frame_complete=None,
+    selected_scenarios: tuple[str, ...] | None = None,
 ) -> SequenceSearchArtifacts:
     """Evaluate multiple motion-bounded prior scenarios for one replay session."""
     if max_speed_mps <= 0.0:
@@ -183,144 +188,77 @@ def build_sequence_search_artifacts(
     timestamps = [_parse_timestamp(frame.timestamp_utc) for frame in session.frames]
     first_timestamp = timestamps[0]
 
-    scenarios = [
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_SEED_ONLY,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-        ),
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_ORACLE_PREVIOUS_TRUTH,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-        ),
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-        ),
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-        ),
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-            image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
-        ),
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-            image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
-        ),
-        build_sequence_scenario_report(
-            scenario_name=SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
-            session=session,
-            georeference=georeference,
-            timestamps=timestamps,
-            first_timestamp=first_timestamp,
-            geometry_report=geometry_report.frames,
-            max_speed_mps=max_speed_mps,
-            base_search_radius_m=base_search_radius_m,
-            measurement_update_radius_m=measurement_update_radius_m,
-            classical_feature_matcher=ClassicalFeatureMatcher(georeference.image_path),
-        ),
-    ]
+    def _wants(scenario_name: str) -> bool:
+        if selected_scenarios is None:
+            return True
+        return scenario_name in selected_scenarios
+
+    common_kwargs = dict(
+        session=session,
+        georeference=georeference,
+        timestamps=timestamps,
+        first_timestamp=first_timestamp,
+        geometry_report=geometry_report.frames,
+        max_speed_mps=max_speed_mps,
+        base_search_radius_m=base_search_radius_m,
+        measurement_update_radius_m=measurement_update_radius_m,
+        on_frame_complete=on_frame_complete,
+    )
+    scenarios: list[SequenceScenarioReport] = []
+    if _wants(SCENARIO_SEED_ONLY):
+        scenarios.append(build_sequence_scenario_report(scenario_name=SCENARIO_SEED_ONLY, **common_kwargs))
+    if _wants(SCENARIO_ORACLE_PREVIOUS_TRUTH):
+        scenarios.append(build_sequence_scenario_report(scenario_name=SCENARIO_ORACLE_PREVIOUS_TRUTH, **common_kwargs))
+    if _wants(SCENARIO_RECURSIVE_ORACLE_ESTIMATE):
+        scenarios.append(build_sequence_scenario_report(scenario_name=SCENARIO_RECURSIVE_ORACLE_ESTIMATE, **common_kwargs))
+    if _wants(SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER):
+        scenarios.append(build_sequence_scenario_report(scenario_name=SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER, **common_kwargs))
+    if _wants(SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER):
+        scenarios.append(
+            build_sequence_scenario_report(
+                scenario_name=SCENARIO_RECURSIVE_IMAGE_BASELINE_MATCHER,
+                image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
+                **common_kwargs,
+            )
+        )
+    if _wants(SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER):
+        scenarios.append(
+            build_sequence_scenario_report(
+                scenario_name=SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
+                image_baseline_matcher=ImageBaselineMatcher(georeference.image_path),
+                **common_kwargs,
+            )
+        )
+    if _wants(SCENARIO_RECURSIVE_CLASSICAL_MATCHER):
+        scenarios.append(
+            build_sequence_scenario_report(
+                scenario_name=SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
+                classical_feature_matcher=ClassicalFeatureMatcher(georeference.image_path),
+                **common_kwargs,
+            )
+        )
     if roma_matcher is not None:
-        scenarios.append(
-            build_sequence_scenario_report(
-                scenario_name=SCENARIO_RECURSIVE_ROMA_MATCHER,
-                session=session,
-                georeference=georeference,
-                timestamps=timestamps,
-                first_timestamp=first_timestamp,
-                geometry_report=geometry_report.frames,
-                max_speed_mps=max_speed_mps,
-                base_search_radius_m=base_search_radius_m,
-                measurement_update_radius_m=measurement_update_radius_m,
-                roma_matcher=roma_matcher,
+        for roma_scenario_name in (
+            SCENARIO_RECURSIVE_ROMA_MATCHER,
+            SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+            SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER,
+            SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
+        ):
+            if not _wants(roma_scenario_name):
+                continue
+            scenarios.append(
+                build_sequence_scenario_report(
+                    scenario_name=roma_scenario_name,
+                    roma_matcher=roma_matcher,
+                    **common_kwargs,
+                )
             )
-        )
-        scenarios.append(
-            build_sequence_scenario_report(
-                scenario_name=SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
-                session=session,
-                georeference=georeference,
-                timestamps=timestamps,
-                first_timestamp=first_timestamp,
-                geometry_report=geometry_report.frames,
-                max_speed_mps=max_speed_mps,
-                base_search_radius_m=base_search_radius_m,
-                measurement_update_radius_m=measurement_update_radius_m,
-                roma_matcher=roma_matcher,
-            )
-        )
-        scenarios.append(
-            build_sequence_scenario_report(
-                scenario_name=SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
-                session=session,
-                georeference=georeference,
-                timestamps=timestamps,
-                first_timestamp=first_timestamp,
-                geometry_report=geometry_report.frames,
-                max_speed_mps=max_speed_mps,
-                base_search_radius_m=base_search_radius_m,
-                measurement_update_radius_m=measurement_update_radius_m,
-                roma_matcher=roma_matcher,
-            )
-        )
-    if loftr_matcher is not None:
+    if loftr_matcher is not None and _wants(SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER):
         scenarios.append(
             build_sequence_scenario_report(
                 scenario_name=SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
-                session=session,
-                georeference=georeference,
-                timestamps=timestamps,
-                first_timestamp=first_timestamp,
-                geometry_report=geometry_report.frames,
-                max_speed_mps=max_speed_mps,
-                base_search_radius_m=base_search_radius_m,
-                measurement_update_radius_m=measurement_update_radius_m,
                 loftr_matcher=loftr_matcher,
+                **common_kwargs,
             )
         )
 
@@ -356,6 +294,7 @@ def build_sequence_scenario_report(
     classical_feature_matcher: ClassicalFeatureMatcher | None = None,
     roma_matcher: RoMaRegressionMatcher | None = None,
     loftr_matcher: LoFTRRegressionMatcher | None = None,
+    on_frame_complete=None,
 ) -> SequenceScenarioReport:
     """Evaluate one sequence-prior scenario."""
     if scenario_name not in SCENARIO_NAMES:
@@ -410,6 +349,8 @@ def build_sequence_scenario_report(
                 prior_source = "previous_estimate_recursive_roma"
             elif scenario_name == SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER:
                 prior_source = "previous_estimate_recursive_roma_map_constrained"
+            elif scenario_name == SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER:
+                prior_source = "previous_estimate_recursive_roma_multicandidate_map_constrained"
             elif scenario_name == SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER:
                 prior_latitude_deg, prior_longitude_deg = offset_latlon_by_meters(
                     estimated_latitude_deg,
@@ -596,6 +537,12 @@ def build_sequence_scenario_report(
             )
         )
 
+        if on_frame_complete is not None:
+            try:
+                on_frame_complete(scenario_name, index, len(session.frames), results[-1])
+            except Exception:
+                pass
+
         if scenario_name in (
             SCENARIO_RECURSIVE_ORACLE_ESTIMATE,
             SCENARIO_RECURSIVE_PLACEHOLDER_MATCHER,
@@ -604,6 +551,7 @@ def build_sequence_scenario_report(
             SCENARIO_RECURSIVE_CLASSICAL_MATCHER,
             SCENARIO_RECURSIVE_ROMA_MATCHER,
             SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+            SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER,
             SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
             SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
         ):
@@ -815,6 +763,24 @@ def build_estimate_update(
             measurement_update_radius_m=measurement_update_radius_m,
             georeference_max_residual_m=georeference.max_residual_m,
         )
+    elif scenario_name == SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER:
+        if roma_matcher is None:
+            raise ValueError("roma_matcher is required for recursive RoMa multicandidate scenario")
+        return evaluate_roma_multicandidate_update(
+            frame_image_path=frame.image_path,
+            normalization_rotation_deg=geometry.normalization_rotation_deg,
+            ground_width_m=geometry.ground_width_m,
+            ground_height_m=geometry.ground_height_m,
+            prior_latitude_deg=prior_latitude_deg,
+            prior_longitude_deg=prior_longitude_deg,
+            fallback_latitude_deg=fallback_latitude_deg,
+            fallback_longitude_deg=fallback_longitude_deg,
+            prior_search_radius_m=prior_search_radius_m,
+            crop_side_m=crop_side_m,
+            georeference=georeference,
+            roma_matcher=roma_matcher,
+            measurement_update_radius_m=measurement_update_radius_m,
+        )
     else:
         if loftr_matcher is None:
             raise ValueError("loftr_matcher is required for recursive LoFTR scenario")
@@ -848,6 +814,7 @@ def build_estimate_update(
             decision_diagnostics = getattr(decision, "diagnostics", None)
             if scenario_name in (
                 SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+                SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER,
                 SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
                 SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
             ):
@@ -970,6 +937,7 @@ def is_map_constrained_scenario(scenario_name: str) -> bool:
     return scenario_name in {
         SCENARIO_RECURSIVE_IMAGE_MAP_CONSTRAINED_MATCHER,
         SCENARIO_RECURSIVE_ROMA_MAP_CONSTRAINED_MATCHER,
+        SCENARIO_RECURSIVE_ROMA_MULTICANDIDATE_MAP_CONSTRAINED_MATCHER,
         SCENARIO_RECURSIVE_ROMA_VELOCITY_LIKELIHOOD_MATCHER,
         SCENARIO_RECURSIVE_LOFTR_MAP_CONSTRAINED_MATCHER,
     }

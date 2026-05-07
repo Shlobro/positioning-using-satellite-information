@@ -49,6 +49,7 @@ class _LocalizationRunWorker(QtCore.QObject):
 
     finished = QtCore.pyqtSignal(object)
     failed = QtCore.pyqtSignal(str)
+    frame_ready = QtCore.pyqtSignal(int, int, object)
 
     def __init__(self, request: RunRequest) -> None:
         super().__init__()
@@ -56,8 +57,27 @@ class _LocalizationRunWorker(QtCore.QObject):
 
     @QtCore.pyqtSlot()
     def run(self) -> None:
+        def _on_frame(frame_index: int, total: int, preview) -> None:
+            self.frame_ready.emit(frame_index, total, preview)
+
         try:
-            result = execute_run_request(self._request)
+            request_with_callback = RunRequest(
+                input_mode=self._request.input_mode,
+                pipeline=self._request.pipeline,
+                georeference=self._request.georeference,
+                session=self._request.session,
+                replay_path=self._request.replay_path,
+                prior_latitude_deg=self._request.prior_latitude_deg,
+                prior_longitude_deg=self._request.prior_longitude_deg,
+                prior_search_radius_m=self._request.prior_search_radius_m,
+                measurement_update_radius_m=self._request.measurement_update_radius_m,
+                max_speed_mps=self._request.max_speed_mps,
+                base_search_radius_m=self._request.base_search_radius_m,
+                roma_matcher_factory=self._request.roma_matcher_factory,
+                on_frame_complete=_on_frame if self._request.input_mode == "sequence" else None,
+                only_selected_scenario=self._request.only_selected_scenario,
+            )
+            result = execute_run_request(request_with_callback)
         except Exception as exc:
             traceback.print_exc()
             self.failed.emit(str(exc))
@@ -243,6 +263,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 georeference=self._georeference,
                 replay_path=self._sequence_replay_path,
                 roma_matcher_factory=_roma_matcher_factory_or_none(),
+                only_selected_scenario=True,
             )
         self._start_run(request)
 
@@ -299,6 +320,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._run_thread.started.connect(self._run_worker.run)
         self._run_worker.finished.connect(self._on_run_finished)
         self._run_worker.failed.connect(self._on_run_failed)
+        self._run_worker.frame_ready.connect(self._on_run_frame_ready)
         self._run_worker.finished.connect(self._run_thread.quit)
         self._run_worker.failed.connect(self._run_thread.quit)
         self._run_worker.finished.connect(self._run_worker.deleteLater)
@@ -319,6 +341,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"{result.pipeline} completed in {result.runtime_seconds:.2f}s "
                 f"({len(result.frames)} frame(s))"
             )
+
+    def _on_run_frame_ready(self, frame_index: int, total: int, preview) -> None:
+        self._controls.set_progress(frame_index + 1, total)
+        if preview is not None:
+            self._map_view.set_prediction(preview)
+            self._result_panel.show_live_frame(preview, frame_index, total)
 
     def _on_run_failed(self, message: str) -> None:
         self._set_run_in_progress(False)

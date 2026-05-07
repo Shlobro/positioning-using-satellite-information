@@ -116,6 +116,11 @@ Design notes:
   scenario. It predicts the next search prior from the last accepted velocity,
   then records a combined motion/evidence likelihood so static thresholding can
   be compared against a first sequence-state model.
+- The RoMa sequence evaluator now also has a multicandidate map-constrained
+  scenario. It evaluates the current prior plus an 8-neighbor ring inside the
+  motion radius, applies the existing temporal gate to accepted RoMa outputs,
+  and records candidate-selection diagnostics so crop generation can be judged
+  separately from matcher swaps.
 - The velocity-predicted likelihood scenario is intentionally diagnostic and
   contained: failed matcher or likelihood updates retain the last accepted
   state instead of committing the velocity prediction, while frame rows record

@@ -44,6 +44,10 @@ Guidelines:
 - RoMa-enabled `sequence_search_replay.py` runs now also include the
   velocity-predicted likelihood scenario in the generated summary and debug SVG
   because that behavior is provided by the imported sequence evaluator.
+- RoMa-enabled `sequence_search_replay.py` runs now also include the
+  multicandidate map-constrained RoMa scenario in the generated summary and
+  debug SVG, exposing candidate-selection diagnostics without adding new CLI
+  flags.
 - `live_receiver_stub.py` is the Phase 1 minimal live intake entry point for one `live_frame` packet.
 - Repository-facing Python scripts should bootstrap `src/` explicitly so `python scripts/<tool>.py` works on a fresh checkout without installing the package first.
 - `verify_repo.py` is the deterministic repository verification path when direct `pytest` execution is not trustworthy in the local shell wrapper.

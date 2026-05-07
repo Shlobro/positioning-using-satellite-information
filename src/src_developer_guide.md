@@ -69,6 +69,10 @@ Current scope:
 - RoMa-enabled sequence evaluation now also reports a velocity-predicted
   likelihood scenario that carries a simple velocity estimate forward and logs
   combined motion/evidence likelihood diagnostics for accepted dense matches.
+- RoMa-enabled sequence evaluation now also reports a multicandidate
+  map-constrained scenario that tests center-plus-ring crop generation before
+  neural matching, with candidate-count and selected-candidate diagnostics in
+  frame artifacts.
 - The velocity-predicted likelihood scenario now records explicit prediction,
   fallback-retention, and drift fields per frame, and failed velocity
   predictions no longer replace the last accepted state.

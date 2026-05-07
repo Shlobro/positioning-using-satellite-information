@@ -1,5 +1,13 @@
 # Change Log
 
+## 2026-05-07
+
+- owner: Claude
+- files changed: `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/eval_developer_guide.md`, `tools/localization_gui/controls_panel.py`, `tools/localization_gui/pipeline_runner.py`, `tools/localization_gui/localization_gui.py`, `tools/localization_gui/result_panel.py`, `tools/localization_gui/map_view.py`, `tools/localization_gui/localization_gui_developer_guide.md`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Make the localization GUI faster and more legible for stakeholder demos by adding a sequence-mode "Fast mode" checkbox that locks the scenario to `recursive_roma_map_constrained_matcher` and skips the other registered scenarios, a determinate per-frame progress bar, live per-frame map updates, a marker legend distinguishing prior/predicted/ground-truth, and a CUDA availability warning when Fast mode would fall back to CPU RoMa.
+- linked run_ids: none
+- actual result: `build_sequence_search_artifacts` now accepts an optional `on_frame_complete` callback and a `selected_scenarios` filter; the GUI sequence run path always sets `only_selected_scenario=True` so it no longer pays for scenarios it cannot display. The worker emits a `frame_ready` signal that drives the determinate progress bar and a live map prediction. Marker symbols and an inline legend make the demo self-explanatory.
+
 ## 2026-04-20
 
 - owner: Codex
@@ -357,3 +365,9 @@
 - intent: Fix debug-SVG rendering for the new LoFTR sequence scenario after the first real replay reached artifact writing.
 - linked run_ids: manual `sequence-search-loftr-benchmark`
 - actual result: The combined RoMa plus LoFTR replay produced `sequence_search_summary.json`, then failed with a `KeyError` because `recursive_loftr_map_constrained_matcher` had no SVG style entry. The SVG writer now includes a LoFTR style, so rerunning can finish the artifact set and print the scenario rows. The summary was still usable: `recursive_roma_map_constrained_matcher` reached `53/92` matches and `4.60m` mean error, while `recursive_loftr_map_constrained_matcher` accepted `0/92` updates and reached `11.64m` mean error with `fallback_loftr_insufficient_matches: 91` and `fallback_loftr_weak_inlier_support: 1`.
+
+- owner: Codex
+- files changed: `src/satellite_drone_localization/eval/sequence_roma_candidates.py`, `src/satellite_drone_localization/eval/sequence_search.py`, `src/satellite_drone_localization/eval/sequence_scenarios.py`, `src/satellite_drone_localization/eval/sequence_artifacts.py`, `src/satellite_drone_localization/eval/__init__.py`, `tests/test_sequence_search.py`, `HUMAN_NEXT_STEPS.md`, developer guides, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Add a candidate-generation slice before neural matching, keeping `recursive_roma_map_constrained_matcher` as the baseline after the LoFTR result accepted `0/92` updates.
+- linked run_ids: none yet
+- actual result: Added `recursive_roma_multicandidate_map_constrained_matcher`, which evaluates the current prior plus a deterministic 8-neighbor ring of map-constrained RoMa crop candidates inside the motion radius. The scenario reuses the existing RoMa temporal gate, selects the highest-scoring temporal-gated candidate, and records candidate counts, selected offset, raw accepted count, and temporal accepted count in matcher diagnostics. Deterministic fake-backend tests cover scenario wiring and candidate diagnostics. Agent-run syntax compilation passed for the edited eval package and sequence-search tests. Required local batch verification passed on 2026-04-30 with `scripts/run_pytest_isolation.bat` on Python `3.12.4`, ending in `verification_ok`; the DEV-session CUDA replay still needs to be run.

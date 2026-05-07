@@ -107,6 +107,11 @@ Current scope:
   next prior from the previous accepted velocity and rejects accepted RoMa
   transforms when their combined motion/evidence likelihood falls below the
   recorded threshold.
+- RoMa-enabled runs now also append
+  `recursive_roma_multicandidate_map_constrained_matcher`. This scenario keeps
+  the map-constrained RoMa temporal gate but evaluates a deterministic
+  center-plus-ring set of nearby candidate crops before selecting the best
+  temporal-gated update.
 - The velocity-likelihood scenario now separates search prediction from state
   retention. The crop is still centered from the predicted prior, but fallback
   writes the previous accepted estimate back into recursive state and frame
@@ -144,6 +149,9 @@ Guidelines:
   or makes failure more honest in the artifact summaries.
 - Keep temporal gates in `sequence_policy.py` when they depend on sequence
   state rather than on matcher-internal correspondence fitting.
+- Keep multicandidate crop-ranking logic in `sequence_roma_candidates.py` so
+  candidate generation can grow without pushing `sequence_search.py` over the
+  file-size limit.
 - Keep artifact serialization in `sequence_artifacts.py`; the main evaluator
   should stay focused on scenario state transitions and measurement updates.
 - When adding optional heavy matchers, keep the default repo verification path
@@ -151,3 +159,9 @@ Guidelines:
   replay measurements for the actual benchmark value.
 - Treat comparison reports as derived evidence from a completed replay summary;
   they should not rerun the heavy neural matcher or mutate the source artifact.
+- `build_sequence_search_artifacts` accepts an optional `on_frame_complete`
+  callback `(scenario_name, frame_index, total_frames, frame_result)` and an
+  optional `selected_scenarios` filter. Both are intended for live consumers
+  (the GUI) that want streamed frame results and want to skip scenarios they
+  will not display. The callback is best-effort: exceptions inside it are
+  swallowed so a flaky GUI consumer cannot break a benchmark run.

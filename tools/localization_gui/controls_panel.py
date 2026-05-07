@@ -51,6 +51,9 @@ class ControlsPanel(QtWidgets.QWidget):
     run_requested = QtCore.pyqtSignal()
     heatmap_toggled = QtCore.pyqtSignal(bool)
     query_overlay_toggled = QtCore.pyqtSignal(bool)
+    fast_mode_toggled = QtCore.pyqtSignal(bool)
+
+    FAST_MODE_SCENARIO = "recursive_roma_map_constrained_matcher"
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -168,6 +171,17 @@ class ControlsPanel(QtWidgets.QWidget):
         layout.addLayout(radius_row)
 
         layout.addWidget(self._section_label("Pipeline"))
+        self._fast_mode_check = QtWidgets.QCheckBox("Fast mode (demo): single-crop RoMa only")
+        self._fast_mode_check.setChecked(True)
+        self._fast_mode_check.setVisible(False)
+        self._fast_mode_check.toggled.connect(self._on_fast_mode_toggled)
+        layout.addWidget(self._fast_mode_check)
+        self._fast_mode_warning = self._dim_label("")
+        self._fast_mode_warning.setVisible(False)
+        self._fast_mode_warning.setStyleSheet(
+            f"color: {HIGHLIGHT}; font-size: 9pt;"
+        )
+        layout.addWidget(self._fast_mode_warning)
         self._pipeline_combo = QtWidgets.QComboBox()
         self._pipeline_combo.currentTextChanged.connect(self._on_pipeline_changed)
         layout.addWidget(self._pipeline_combo)
@@ -226,6 +240,7 @@ class ControlsPanel(QtWidgets.QWidget):
             self._pipeline_combo,
             self._heatmap_check,
             self._overlay_check,
+            self._fast_mode_check,
         )
 
     def set_pipeline_choices(self, choices: list[str]) -> None:
@@ -233,8 +248,39 @@ class ControlsPanel(QtWidgets.QWidget):
         self._pipeline_combo.clear()
         self._pipeline_combo.addItems(choices)
         self._pipeline_combo.blockSignals(False)
+        is_sequence = self.current_input_mode() == "sequence"
+        self._fast_mode_check.setVisible(is_sequence)
+        if is_sequence and self._fast_mode_check.isChecked():
+            self._apply_fast_mode_selection()
+        else:
+            self._fast_mode_warning.setVisible(False)
+            self._pipeline_combo.setEnabled(True)
         if choices:
-            self.pipeline_changed.emit(choices[0])
+            self.pipeline_changed.emit(self._pipeline_combo.currentText())
+
+    def _apply_fast_mode_selection(self) -> None:
+        target = self.FAST_MODE_SCENARIO
+        index = self._pipeline_combo.findText(target)
+        if index >= 0:
+            self._pipeline_combo.blockSignals(True)
+            self._pipeline_combo.setCurrentIndex(index)
+            self._pipeline_combo.blockSignals(False)
+        self._pipeline_combo.setEnabled(False)
+        self._fast_mode_warning.setVisible(not _cuda_is_available())
+        if not _cuda_is_available():
+            self._fast_mode_warning.setText(
+                "No CUDA GPU detected. Fast mode still uses RoMa, which will be slow on CPU. "
+                "For a quick CPU demo uncheck Fast mode and pick image_map_constrained."
+            )
+
+    def _on_fast_mode_toggled(self, checked: bool) -> None:
+        if checked:
+            self._apply_fast_mode_selection()
+        else:
+            self._pipeline_combo.setEnabled(True)
+            self._fast_mode_warning.setVisible(False)
+        self.fast_mode_toggled.emit(checked)
+        self.pipeline_changed.emit(self._pipeline_combo.currentText())
 
     def set_tile_label(self, text: str) -> None:
         self._tile_label.setText(text)
@@ -254,8 +300,24 @@ class ControlsPanel(QtWidgets.QWidget):
         self._progress_bar.setVisible(running)
         if running:
             self._progress_label.setText(message or "Running localization…")
+            self._progress_bar.setRange(0, 0)
+            self._progress_bar.setTextVisible(False)
         else:
             self._progress_label.setText("")
+            self._progress_bar.setRange(0, 0)
+            self._progress_bar.setTextVisible(False)
+            if self.fast_mode_enabled():
+                self._pipeline_combo.setEnabled(False)
+
+    def set_progress(self, current: int, total: int, message: str | None = None) -> None:
+        if total <= 0:
+            return
+        self._progress_bar.setRange(0, total)
+        self._progress_bar.setValue(min(current, total))
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setFormat(f"{current} / {total}  (%p%)")
+        if message is not None:
+            self._progress_label.setText(message)
 
     def set_latlon_text(self, latitude_deg: float, longitude_deg: float) -> None:
         self._lat_edit.setText(f"{latitude_deg:.6f}")
@@ -327,6 +389,9 @@ class ControlsPanel(QtWidgets.QWidget):
             return
         self.prior_latlon_submitted.emit(latitude_deg, longitude_deg)
 
+    def fast_mode_enabled(self) -> bool:
+        return self._fast_mode_check.isVisible() and self._fast_mode_check.isChecked()
+
     def _section_label(self, text: str) -> QtWidgets.QLabel:
         label = QtWidgets.QLabel(text)
         label.setProperty("class", "section")
@@ -338,3 +403,14 @@ class ControlsPanel(QtWidgets.QWidget):
         label.setStyleSheet(f"color: {TEXT_DIM}; font-size: 9pt;")
         label.setWordWrap(True)
         return label
+
+
+def _cuda_is_available() -> bool:
+    try:
+        import torch  # type: ignore
+    except Exception:
+        return False
+    try:
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False

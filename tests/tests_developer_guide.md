@@ -60,6 +60,9 @@ Current scope:
 - sequence-search tests now also verify that an explicitly injected
   LoFTR-family matcher adds `recursive_loftr_map_constrained_matcher` while
   preserving the default verifier behavior when LoFTR is disabled.
+- sequence-search tests now also verify that an explicitly injected RoMa
+  matcher adds `recursive_roma_multicandidate_map_constrained_matcher` and
+  records deterministic candidate-count and temporal-acceptance diagnostics.
 - sequence-search tests now also verify per-scenario estimate-source counts,
   fallback-source counts, and that RoMa diagnostics flow into frame artifacts.
 - sequence-search tests now also verify the RoMa temporal gate rejects weak

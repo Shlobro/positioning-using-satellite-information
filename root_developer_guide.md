@@ -73,6 +73,11 @@ Current verification rule:
   likelihood scenario that compares simple sequence-state prediction and a
   combined motion/evidence likelihood against the static map-constrained RoMa
   temporal gate.
+- RoMa-enabled sequence artifacts now also include a multicandidate
+  map-constrained scenario that evaluates a deterministic center-plus-ring set
+  of nearby prior-centered crops before choosing a temporal-gated RoMa update.
+  This measures candidate generation as a separate improvement class from
+  matcher-family swapping.
 - The sequence-search CLI now also supports an optional EfficientLoFTR-style
   candidate through explicit external checkout/checkpoint flags. This adds
   `recursive_loftr_map_constrained_matcher` without adding a mandatory

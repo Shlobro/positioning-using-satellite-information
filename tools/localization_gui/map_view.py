@@ -91,12 +91,33 @@ class MapView(QtWidgets.QWidget):
         self._radius_circle.setVisible(False)
         self._view_box.addItem(self._radius_circle)
 
-        self._prior_marker = self._make_marker(PRIOR_COLOR)
-        self._prediction_marker = self._make_marker(PREDICTION_COLOR)
-        self._truth_marker = self._make_marker(TRUTH_COLOR)
+        self._prior_marker = self._make_marker(PRIOR_COLOR, symbol="+")
+        self._prediction_marker = self._make_marker(PREDICTION_COLOR, symbol="x")
+        self._truth_marker = self._make_marker(TRUTH_COLOR, symbol="o")
         self._view_box.addItem(self._prior_marker)
         self._view_box.addItem(self._prediction_marker)
         self._view_box.addItem(self._truth_marker)
+
+        self._legend_label = QtWidgets.QLabel(self._plot_widget)
+        self._legend_label.setStyleSheet(
+            "background-color: rgba(13, 13, 26, 200);"
+            "color: #eaeaea;"
+            "padding: 6px 10px;"
+            "border: 1px solid #7a7a9a;"
+            "border-radius: 4px;"
+            "font-family: 'Segoe UI', sans-serif;"
+            "font-size: 9pt;"
+        )
+        self._legend_label.setText(
+            f"<span style='color:{PRIOR_COLOR.name()};'>+ prior</span>"
+            f" &nbsp; "
+            f"<span style='color:{PREDICTION_COLOR.name()};'>x predicted</span>"
+            f" &nbsp; "
+            f"<span style='color:{TRUTH_COLOR.name()};'>o ground truth</span>"
+        )
+        self._legend_label.adjustSize()
+        self._legend_label.move(10, 10)
+        self._legend_label.raise_()
 
         self._georeference: MapGeoreference | None = None
         self._prior: PriorState | None = None
@@ -104,12 +125,12 @@ class MapView(QtWidgets.QWidget):
 
         self._plot_widget.scene().sigMouseClicked.connect(self._on_mouse_clicked)
 
-    def _make_marker(self, color: QtGui.QColor) -> pg.ScatterPlotItem:
+    def _make_marker(self, color: QtGui.QColor, symbol: str = "+") -> pg.ScatterPlotItem:
         marker = pg.ScatterPlotItem(
-            size=18,
+            size=20,
             pen=pg.mkPen(color, width=3),
             brush=pg.mkBrush(0, 0, 0, 0),
-            symbol="+",
+            symbol=symbol,
         )
         marker.setVisible(False)
         return marker

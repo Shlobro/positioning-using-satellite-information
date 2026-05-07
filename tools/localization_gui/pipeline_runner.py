@@ -128,6 +128,8 @@ class RunRequest:
     max_speed_mps: float = 25.0
     base_search_radius_m: float = 0.0
     roma_matcher_factory: object | None = None
+    on_frame_complete: object | None = None
+    only_selected_scenario: bool = False
 
 
 def list_pipelines_for_input(input_mode: str) -> list[str]:
@@ -169,6 +171,8 @@ def execute_run_request(request: RunRequest) -> RunResult:
             base_search_radius_m=request.base_search_radius_m,
             measurement_update_radius_m=request.measurement_update_radius_m,
             roma_matcher_factory=request.roma_matcher_factory,
+            on_frame_complete=request.on_frame_complete,
+            only_selected_scenario=request.only_selected_scenario,
         )
     raise ValueError(f"unsupported input_mode '{request.input_mode}'")
 
@@ -332,6 +336,8 @@ def run_sequence(
     base_search_radius_m: float = 0.0,
     measurement_update_radius_m: float = 5.0,
     roma_matcher_factory=None,
+    on_frame_complete=None,
+    only_selected_scenario: bool = False,
 ) -> RunResult:
     """Run the existing sequence_search evaluator and project one scenario."""
     if scenario_name not in SEQUENCE_SCENARIOS:
@@ -347,6 +353,23 @@ def run_sequence(
             )
         roma_matcher = roma_matcher_factory(georeference.image_path)
 
+    if on_frame_complete is not None:
+        def _scoped_callback(report_scenario: str, frame_index: int, total: int, frame_result) -> None:
+            if report_scenario != scenario_name:
+                return
+            try:
+                preview = _build_frame_preview(
+                    frame_result=frame_result,
+                    session_frame=session.frames[frame_index],
+                    georeference=georeference,
+                )
+            except Exception:
+                preview = None
+            on_frame_complete(frame_index, total, preview)
+    else:
+        _scoped_callback = None
+
+    selected = (scenario_name,) if only_selected_scenario else None
     artifacts = build_sequence_search_artifacts(
         session,
         georeference,
@@ -354,6 +377,8 @@ def run_sequence(
         base_search_radius_m=base_search_radius_m,
         measurement_update_radius_m=measurement_update_radius_m,
         roma_matcher=roma_matcher,
+        on_frame_complete=_scoped_callback,
+        selected_scenarios=selected,
     )
     runtime_seconds = time.perf_counter() - started_at
 
@@ -700,3 +725,46 @@ def _score_images(left: Image.Image, right: Image.Image) -> float:
 
 def utc_now_iso() -> str:
     return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _build_frame_preview(
+    *,
+    frame_result,
+    session_frame,
+    georeference: MapGeoreference,
+) -> "FramePrediction":
+    """Convert one in-flight SequenceFrameResult into a renderable FramePrediction."""
+    geometry = normalize_frame_geometry(session_frame)
+    error_east_m, error_north_m = meters_offset_between(
+        origin_latitude_deg=frame_result.target_latitude_deg,
+        origin_longitude_deg=frame_result.target_longitude_deg,
+        target_latitude_deg=frame_result.estimated_latitude_deg,
+        target_longitude_deg=frame_result.estimated_longitude_deg,
+    )
+    error_m = math.hypot(error_east_m, error_north_m)
+    return FramePrediction(
+        image_name=frame_result.image_name,
+        image_path=session_frame.image_path,
+        accepted=_is_accepted_source(frame_result.estimate_source),
+        estimate_source=frame_result.estimate_source,
+        predicted_latitude_deg=frame_result.estimated_latitude_deg,
+        predicted_longitude_deg=frame_result.estimated_longitude_deg,
+        predicted_pixel_x=frame_result.estimate_pixel_x,
+        predicted_pixel_y=frame_result.estimate_pixel_y,
+        truth_latitude_deg=frame_result.target_latitude_deg,
+        truth_longitude_deg=frame_result.target_longitude_deg,
+        truth_pixel_x=frame_result.target_pixel_x,
+        truth_pixel_y=frame_result.target_pixel_y,
+        error_m=error_m,
+        match_score=frame_result.match_score,
+        runner_up_match_score=frame_result.runner_up_match_score,
+        crop_min_x=frame_result.crop_min_x,
+        crop_min_y=frame_result.crop_min_y,
+        crop_max_x=frame_result.crop_max_x,
+        crop_max_y=frame_result.crop_max_y,
+        confidence_radius_m=frame_result.estimated_confidence_radius_m,
+        heading_deg=session_frame.heading_deg,
+        altitude_m=session_frame.altitude_m,
+        ground_width_m=geometry.ground_width_m,
+        ground_height_m=geometry.ground_height_m,
+    )

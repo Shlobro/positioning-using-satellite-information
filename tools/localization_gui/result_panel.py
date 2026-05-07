@@ -120,6 +120,35 @@ class ResultPanel(QtWidgets.QWidget):
         )
         self._thumbnail.setPixmap(scaled)
 
+    def show_live_frame(self, frame: FramePrediction, frame_index: int, total: int) -> None:
+        """Render a single in-flight frame while the worker is still running."""
+        self._labels["pipeline"].setText("(running)")
+        self._labels["runtime"].setText("…")
+        outcome = (
+            f"ACCEPTED  ({frame.estimate_source})"
+            if frame.accepted
+            else f"FALLBACK  ({frame.estimate_source})"
+        )
+        outcome_color = SUCCESS if frame.accepted else HIGHLIGHT
+        self._labels["outcome"].setText(outcome)
+        self._labels["outcome"].setStyleSheet(
+            f"color: {outcome_color}; font-family: Consolas, monospace;"
+        )
+        self._labels["pred_lat"].setText(f"{frame.predicted_latitude_deg:.6f}°")
+        self._labels["pred_lon"].setText(f"{frame.predicted_longitude_deg:.6f}°")
+        if frame.error_m is not None:
+            self._labels["error"].setText(f"{frame.error_m:.2f} m")
+        else:
+            self._labels["error"].setText("—")
+        if frame.match_score is not None:
+            self._labels["score"].setText(f"{frame.match_score:.3f}")
+        else:
+            self._labels["score"].setText("—")
+        self._labels["frame"].setText(
+            f"{frame_index + 1} / {total}  ({frame.image_name})"
+        )
+        self.show_query_thumbnail(frame.image_path)
+
     def show_run_result(self, result: RunResult) -> None:
         self._result = result
         self._frame_index = 0

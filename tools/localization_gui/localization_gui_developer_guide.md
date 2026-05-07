@@ -114,11 +114,43 @@ tools/localization_gui/
 
 - While a run is active, the sidebar disables tile/query/prior/pipeline edits
   to avoid mutating GUI state underneath an in-flight worker.
-- The sidebar shows an indeterminate progress bar and changes the run button
-  text to `Running…`.
-- This v1 progress indicator is intentionally honest: single-image and
-  sequence paths now remain responsive, but they do not yet expose per-frame
-  percentage completion from `sequence_search.py`.
+- The run button text changes to `Running…`.
+- For sequence-mode runs, the progress bar is determinate and shows
+  `current / total (NN%)` driven by a per-frame callback wired through
+  `eval/sequence_search.py::build_sequence_scenario_report`. Each completed
+  frame is also pushed to the map view and the result panel immediately, so
+  demos display localization happening live instead of staring at a bar.
+- For single-image mode the progress bar stays indeterminate; the run is one
+  shot.
+
+## Fast mode (sequence demos)
+
+- A "Fast mode" checkbox is shown only when sequence input is selected and is
+  checked by default.
+- When checked it locks the scenario dropdown to
+  `recursive_roma_map_constrained_matcher`, the current measured RoMa baseline
+  (~3.88–4.60 m mean error). Other registered scenarios are skipped entirely
+  via the `selected_scenarios` filter on `build_sequence_search_artifacts`,
+  which avoids paying for the multicandidate, velocity-likelihood, and LoFTR
+  paths during a demo.
+- If CUDA is not available, an inline warning suggests unchecking Fast mode
+  and picking `image_map_constrained` for a quick CPU demo. RoMa on CPU is
+  not blocked but is slow.
+
+## Sequence-mode scope
+
+The sequence-mode GUI run path always sets `only_selected_scenario=True`, so
+only the selected scenario is computed even when Fast mode is unchecked. This
+matches the GUI's display semantics (one scenario at a time) and avoids
+recomputing every other registered scenario per run.
+
+## Map overlay legend
+
+`MapView` shows a small legend in the upper-left corner that maps each marker
+symbol/color pair to its meaning:
+- red `+` = prior
+- green `x` = predicted location
+- yellow `o` = ground truth (when known)
 
 ## Coordinate system
 

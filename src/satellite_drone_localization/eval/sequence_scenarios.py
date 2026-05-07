@@ -44,6 +44,11 @@ def describe_scenario(scenario_name: str) -> str:
             "Stateful RoMa loop that shifts the search center back into the calibrated map bounds when possible, "
             "so the neural benchmark can test whether boundary-aware bootstrap policy improves persistence."
         )
+    if scenario_name == "recursive_roma_multicandidate_map_constrained_matcher":
+        return (
+            "Stateful RoMa loop that evaluates a deterministic center-plus-ring set of map-constrained candidate crops "
+            "and feeds back the best temporal-gated candidate, so candidate generation can be measured separately from matcher family changes."
+        )
     if scenario_name == "recursive_roma_velocity_likelihood_matcher":
         return (
             "Stateful RoMa loop that predicts the next prior from the previous accepted velocity and rejects accepted "
