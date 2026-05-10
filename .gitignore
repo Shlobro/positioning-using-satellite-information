@@ -21,6 +21,7 @@ tmp/
 temp/
 
 # IDE and local settings
+.Vertical/
 .claude/
 .idea/
 .vscode/
