@@ -371,3 +371,11 @@
 - intent: Add a candidate-generation slice before neural matching, keeping `recursive_roma_map_constrained_matcher` as the baseline after the LoFTR result accepted `0/92` updates.
 - linked run_ids: none yet
 - actual result: Added `recursive_roma_multicandidate_map_constrained_matcher`, which evaluates the current prior plus a deterministic 8-neighbor ring of map-constrained RoMa crop candidates inside the motion radius. The scenario reuses the existing RoMa temporal gate, selects the highest-scoring temporal-gated candidate, and records candidate counts, selected offset, raw accepted count, and temporal accepted count in matcher diagnostics. Deterministic fake-backend tests cover scenario wiring and candidate diagnostics. Agent-run syntax compilation passed for the edited eval package and sequence-search tests. Required local batch verification passed on 2026-04-30 with `scripts/run_pytest_isolation.bat` on Python `3.12.4`, ending in `verification_ok`; the DEV-session CUDA replay still needs to be run.
+
+## 2026-05-10
+
+- owner: Shlomo / Codex
+- files changed: `artifacts/manual-verification/sequence-search-roma-multicandidate/`, `HUMAN_NEXT_STEPS.md`, `experiments/change-log.md`, `experiments/experiment-log.csv`, `final-grand-plan.md`
+- intent: Measure whether the multicandidate RoMa crop policy should replace the current map-constrained temporal-gate baseline.
+- linked run_ids: manual `sequence-search-roma-multicandidate`
+- actual result: The Windows CUDA RoMa replay completed with `roma_outdoor` using the non-custom correlation path on Windows. `recursive_roma_map_constrained_matcher` remained the stronger baseline with `53/92` matches and `4.60m` mean error. `recursive_roma_multicandidate_map_constrained_matcher` accepted more updates at `65/92`, but degraded to `21.26m` mean error and `71.31m` max offset. The comparison deltas were `-16.66m` mean error, `-55.15m` max error, `0.07m` final error, and `+12` matched frames, with recommendation `keep_map_constrained_temporal_gate_as_baseline`. This closes the current multicandidate expansion as a negative result and moves the next slice to confidence and false-positive calibration on the baseline RoMa map-constrained path.
