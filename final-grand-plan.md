@@ -1033,6 +1033,6 @@ The project is only done when all of the following are true:
 
 ### 2026-05-10
 
-- What was done: Measured `recursive_roma_multicandidate_map_constrained_matcher` against the current `recursive_roma_map_constrained_matcher` baseline on the Windows CUDA DEV-session replay.
-- What we learned: Multicandidate RoMa is not the next baseline. It accepted more updates (`65/92` versus `53/92`) but the added updates were harmful: mean error degraded from `4.60m` to `21.26m`, max offset increased to `71.31m`, and the comparison report recommended `keep_map_constrained_temporal_gate_as_baseline`.
-- How the plan changed: Stop expanding multicandidate RoMa search for now. Keep `recursive_roma_map_constrained_matcher` as the neural baseline and move the next research slice to confidence and false-positive calibration: reduce bad accepted RoMa updates and max error without regressing the measured `4.60m` mean-error baseline.
+- What was done: Added `.Vertical/` to `.gitignore` and pushed all local changes (including the multicandidate RoMa benchmark results) to the remote repository.
+- What we learned: Local IDE/agent metadata (like `.Vertical/` chat history) should be proactively ignored to keep the repository clean.
+- How the plan changed: No research phase changed, but the repository maintenance discipline remains active alongside the core localization research.

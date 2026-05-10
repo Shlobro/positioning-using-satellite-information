@@ -379,3 +379,9 @@
 - intent: Measure whether the multicandidate RoMa crop policy should replace the current map-constrained temporal-gate baseline.
 - linked run_ids: manual `sequence-search-roma-multicandidate`
 - actual result: The Windows CUDA RoMa replay completed with `roma_outdoor` using the non-custom correlation path on Windows. `recursive_roma_map_constrained_matcher` remained the stronger baseline with `53/92` matches and `4.60m` mean error. `recursive_roma_multicandidate_map_constrained_matcher` accepted more updates at `65/92`, but degraded to `21.26m` mean error and `71.31m` max offset. The comparison deltas were `-16.66m` mean error, `-55.15m` max error, `0.07m` final error, and `+12` matched frames, with recommendation `keep_map_constrained_temporal_gate_as_baseline`. This closes the current multicandidate expansion as a negative result and moves the next slice to confidence and false-positive calibration on the baseline RoMa map-constrained path.
+
+- owner: Gemini CLI
+- files changed: `.gitignore`, `experiments/experiment-log.csv`, `experiments/change-log.md`, `final-grand-plan.md`
+- intent: Clean repository by ignoring local metadata and recording recent benchmark results.
+- linked run_ids: none
+- actual result: `.Vertical/` added to `.gitignore`, experiment log updated with commit hash, and recent multicandidate results documented.
